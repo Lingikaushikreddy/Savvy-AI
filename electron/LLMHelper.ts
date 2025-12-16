@@ -1,26 +1,28 @@
 
 import fs from 'fs'
 import { LLMRouter, Context, MessageContent } from './ai/LLMRouter'
+import { PlaybookManager } from './ai/PlaybookManager'
 
 export class LLMHelper {
   private router: LLMRouter
-  private readonly systemPrompt = `You are Savvy AI, a helpful, proactive desktop assistant. You can see what the user sees. Analyze the provided images or context and provide clear, concise, and helpful responses. If the user presents a problem, solve it. If they present code, debug it or explain it. Always be friendly and professional.`
+  private playbookManager: PlaybookManager
 
   constructor() {
     this.router = new LLMRouter()
     // Default to OpenAI GPT-4o which is good for vision and reasoning
     this.router.setProvider('openai')
     this.router.setModel('gpt-4o')
+    this.playbookManager = new PlaybookManager()
   }
 
   // Helper to read file and return base64 data url
   private async fileToDataUrl(path: string, mimeType: string = 'image/png'): Promise<string> {
     const data = await fs.promises.readFile(path)
-    return `data:${mimeType};base64,${data.toString('base64')}`
+    return `data:${mimeType}; base64, ${data.toString('base64')} `
   }
 
   private cleanJsonResponse(text: string): string {
-    text = text.replace(/^```(?:json)?\n/, '').replace(/\n```$/, '')
+    text = text.replace(/^```(?: json) ?\n /, '').replace(/\n```$/, '')
     text = text.trim()
     return text
   }
@@ -33,7 +35,16 @@ export class LLMHelper {
     try {
       const content: MessageContent = []
 
-      // Add text prompt first
+      // We don't have text context yet, so detecting playbook is hard before OCR. 
+      // However, OCRProcessor does OCR. LLMHelper just takes images here.
+      // We can use a generic "System" prompt to extract the problem, AND THEN 
+      // rely on the NEXT step (generateSolution) to refine the persona based on the extracted text.
+      // OR, we can try to guess based on heuristic, but for now let's stick to a generic extraction prompt
+      // and let the generateSolution handling the specialized response.
+      // WAIT using the "GENERAL_MEETING" (which is default) for extraction is fine.
+
+      const playbook = this.playbookManager.getPlaybook('GENERAL_MEETING');
+
       const prompt = `You are a wingman. Please analyze these images and extract the following information in JSON format:\n{
   "problem_statement": "A clear statement of the problem or situation depicted in the images.",
   "context": "Relevant background or context from the images.",
@@ -53,7 +64,7 @@ export class LLMHelper {
       }
 
       const context: Context = {
-        systemPrompt: this.systemPrompt,
+        systemPrompt: playbook.systemPrompt,
         messages: [{ role: 'user', content }]
       }
 
@@ -71,6 +82,12 @@ export class LLMHelper {
   }
 
   public async generateSolution(problemInfo: any) {
+    // Now we have the problem statement, we can detect the playbook!
+    const contextText = JSON.stringify(problemInfo);
+    const playbook = this.playbookManager.detectPlaybook(contextText);
+
+    console.log(`[LLMHelper] Detected Playbook: ${playbook.name} (${playbook.id})`);
+
     const prompt = `Given this problem or situation:\n${JSON.stringify(problemInfo, null, 2)}\n\nPlease provide your response in the following JSON format:\n{
   "solution": {
     "code": "The code or main answer here.",
@@ -79,12 +96,16 @@ export class LLMHelper {
     "suggested_responses": ["First possible answer or action", "Second possible answer or action", "..."],
     "reasoning": "Explanation of why these suggestions are appropriate."
   }
-}\nImportant: Return ONLY the JSON object, without any markdown formatting or code blocks.`
+}\nImportant: Return ONLY the JSON object, without any markdown formatting or code blocks.
+Note: Your response tone should be: ${playbook.responseFormat.tone}
+${playbook.responseFormat.includeCode ? "Include code if applicable." : ""}
+${playbook.responseFormat.useSTARMethod ? "Use the STAR method for the main answer." : ""}
+`
 
     console.log('[LLMHelper] Calling LLMRouter for solution...')
     try {
       const context: Context = {
-        systemPrompt: this.systemPrompt,
+        systemPrompt: playbook.systemPrompt,
         messages: [{ role: 'user', content: prompt }]
       }
 
@@ -107,6 +128,10 @@ export class LLMHelper {
     debugImagePaths: string[]
   ) {
     try {
+      // Detect playbook again based on context
+      const contextText = JSON.stringify(problemInfo) + " " + currentCode;
+      const playbook = this.playbookManager.detectPlaybook(contextText);
+
       const content: MessageContent = []
 
       const prompt = `You are a wingman. Given:\n1. The original problem or situation: ${JSON.stringify(problemInfo, null, 2)}\n2. The current response or approach: ${currentCode}\n3. The debug information in the provided images\n\nPlease analyze the debug information and provide feedback in this JSON format:\n{
@@ -130,7 +155,7 @@ export class LLMHelper {
       }
 
       const context: Context = {
-        systemPrompt: this.systemPrompt,
+        systemPrompt: playbook.systemPrompt,
         messages: [{ role: 'user', content }]
       }
 
@@ -184,8 +209,10 @@ export class LLMHelper {
         { type: 'image_url', image_url: { url } }
       ]
 
+      const playbook = this.playbookManager.getPlaybook('GENERAL_MEETING')
+
       const context: Context = {
-        systemPrompt: this.systemPrompt,
+        systemPrompt: playbook.systemPrompt,
         messages: [{ role: 'user', content }]
       }
 
