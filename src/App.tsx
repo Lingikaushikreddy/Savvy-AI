@@ -1,10 +1,7 @@
-import { ToastProvider } from './components/ui/toast'
-import { ToastViewport } from '@radix-ui/react-toast'
-import { useEffect, useState } from 'react'
-import { QueryClient, QueryClientProvider } from 'react-query'
-import Chat from './_pages/Chat'
-import { Message } from './types/chat'
-import { v4 as uuidv4 } from 'uuid'
+import React, { useEffect } from 'react'
+import { OverlayPanel } from './components/overlay/OverlayPanel'
+import { Toaster } from './components/ui/toast'
+import { useAppStore } from './store/useAppStore'
 
 declare global {
   interface Window {
@@ -48,168 +45,47 @@ declare global {
   }
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: Infinity,
-      cacheTime: Infinity
-    }
-  }
-})
-
 const App: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: "Hi! I'm Savvy. I can see what you see. Take a screenshot or ask me anything.",
-      type: 'text',
-      // eslint-disable-next-line react-hooks/purity
-      timestamp: Date.now()
-    }
-  ])
-  const [isTyping, setIsTyping] = useState(false)
+  const {
+    toggleVisibility,
+    toggleExpanded,
+    clearData,
+    triggerAI
+  } = useAppStore()
 
-  // Load history
   useEffect(() => {
-    const stored = localStorage.getItem('savvy_history')
-    if (stored) {
-      try {
-        setMessages(JSON.parse(stored))
-      } catch (e) {
-        console.error('Failed to parse history', e)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Toggle Visibility: Cmd+Ctrl+B (Example)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        toggleVisibility()
+      }
+      // Toggle Expand: Cmd+Ctrl+H
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'H') {
+        toggleExpanded()
+      }
+
+      // Clear: Cmd+K
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        clearData()
+      }
+
+      // Trigger AI: Cmd+Enter (Often conflicting, lets use Cmd+Shift+A as requested)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'A') {
+        triggerAI()
       }
     }
-  }, [])
 
-  // Save history
-  useEffect(() => {
-    localStorage.setItem('savvy_history', JSON.stringify(messages))
-  }, [messages])
-
-  const addMessage = (msg: Omit<Message, 'id' | 'timestamp'>) => {
-    setMessages((prev) => [...prev, { ...msg, id: uuidv4(), timestamp: Date.now() }])
-  }
-
-  useEffect(() => {
-    // Listeners
-    const cleanupFunctions = [
-      window.electronAPI.onScreenshotTaken(({ path, preview }) => {
-        addMessage({
-          role: 'user',
-          content: '',
-          type: 'image',
-          metadata: { path, preview }
-        })
-        setIsTyping(true) // Assuming backend starts processing immediately?
-        // Actually, onScreenshotTaken just means it's taken. Backend processing triggers separate events?
-        // Existing logic: onSolutionStart -> setView('solutions').
-        // So we should wait for onSolutionStart.
-      }),
-      window.electronAPI.onSolutionStart(() => {
-        setIsTyping(true)
-      }),
-      window.electronAPI.onSolutionSuccess((data) => {
-        setIsTyping(false)
-        if (data?.solution) {
-          const { code, thoughts } = data.solution
-          const text = thoughts ? thoughts.join('\n') + '\n\n' + code : code
-          addMessage({
-            role: 'assistant',
-            content: text || 'I found a solution!',
-            type: 'code' // or text
-          })
-        }
-      }),
-      window.electronAPI.onSolutionError((error) => {
-        setIsTyping(false)
-        addMessage({
-          role: 'system',
-          content: `Error: ${error}`,
-          type: 'text'
-        })
-      }),
-      window.electronAPI.onProcessingNoScreenshots(() => {
-        addMessage({
-          role: 'system',
-          content: 'No screenshots found to process.',
-          type: 'text'
-        })
-        setIsTyping(false)
-      }),
-      window.electronAPI.onProblemExtracted((data) => {
-        // This is called for the initial screenshot analysis
-        setIsTyping(false)
-        if (data?.problem_statement) {
-          addMessage({
-            role: 'assistant',
-            content: data.problem_statement,
-            type: 'text'
-          })
-        }
-      }),
-      window.electronAPI.onDebugSuccess((data) => {
-        setIsTyping(false)
-        if (data?.solution) {
-          const { code, thoughts } = data.solution
-          const text = thoughts ? thoughts.join('\n') + '\n\n' + code : code
-          addMessage({
-            role: 'assistant',
-            content: text || 'Debug complete.',
-            type: 'code'
-          })
-        }
-      }),
-      window.electronAPI.onClipboardTextChanged((text) => {
-        addMessage({
-          role: 'user',
-          content: `(Clipboard) ${text}`,
-          type: 'text'
-        })
-      }),
-      window.electronAPI.onClipboardImageChanged((dataUrl) => {
-        addMessage({
-          role: 'user',
-          content: '',
-          type: 'image',
-          metadata: { preview: dataUrl }
-        })
-      })
-    ]
-
-    return () => cleanupFunctions.forEach((cleanup) => cleanup())
-  }, [])
-
-  const handleSendMessage = (text: string) => {
-    addMessage({
-      role: 'user',
-      content: text,
-      type: 'text'
-    })
-    // TODO: Send to backend if text chat is supported
-    // For now, Savvy AI is primarily visual.
-    // We might need to implement a text chat IPC handler if we want text interaction.
-    // "Phase 6: Backend & AI Integration" will handle this.
-    // For now, we just show it.
-  }
-
-  const handleCaptureScreenshot = () => {
-    window.electronAPI.takeScreenshot()
-  }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [toggleVisibility, toggleExpanded, clearData, triggerAI])
 
   return (
-    <div className="h-screen w-screen bg-transparent overflow-hidden">
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>
-          <Chat
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            onCaptureScreenshot={handleCaptureScreenshot}
-            isTyping={isTyping}
-          />
-          <ToastViewport />
-        </ToastProvider>
-      </QueryClientProvider>
+    <div className="w-screen h-screen bg-transparent font-inter selection:bg-blue-500/30">
+      {/* The main overlay panel */}
+      <OverlayPanel />
+
+      {/* Toasts and other global fixed elements */}
+      <Toaster />
     </div>
   )
 }
