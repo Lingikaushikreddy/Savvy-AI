@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { OverlayPanel } from './components/overlay/OverlayPanel'
+import { SettingsPanel } from './components/SettingsPanel'
 import { Toaster } from './components/ui/toast'
 import { useAppStore } from './store/useAppStore'
 
@@ -83,6 +84,9 @@ const App: React.FC = () => {
     <div className="w-screen h-screen bg-transparent font-inter selection:bg-blue-500/30">
       {/* The main overlay panel */}
       <OverlayPanel />
+
+      {/* Settings Modal */}
+      <SettingsPanel />
 
       {/* Toasts and other global fixed elements */}
       <Toaster />

@@ -15,7 +15,8 @@ export const OverlayPanel: React.FC = () => {
         status,
         currentResponse,
         clearData,
-        triggerAI
+        triggerAI,
+        toggleSettings
     } = useAppStore()
 
     // Handler for double-click to collapse/expand
@@ -30,7 +31,7 @@ export const OverlayPanel: React.FC = () => {
     }
 
     const handleSettings = () => {
-        console.log('Settings clicked')
+        toggleSettings()
     }
 
     return (
