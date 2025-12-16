@@ -187,5 +187,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopAudioCapture: () => ipcRenderer.invoke('audio-stop'),
   getAudioChunk: () => ipcRenderer.invoke('audio-get-chunk'),
   getAudioLevel: () => ipcRenderer.invoke('audio-get-level'),
-  transcribeAudio: (audioBuffer: any) => ipcRenderer.invoke('transcribe-audio', audioBuffer)
+  transcribeAudio: (buffer: ArrayBuffer) => ipcRenderer.invoke('transcribe-audio', buffer),
+
+  // Database
+  createConversation: (data: any) => ipcRenderer.invoke('db-create-conversation', data),
+  listConversations: (filters: any) => ipcRenderer.invoke('db-list-conversations', filters),
+  getConversation: (id: string) => ipcRenderer.invoke('db-get-conversation', id),
+  deleteConversation: (id: string) => ipcRenderer.invoke('db-delete-conversation', id),
+  addMessage: (conversationId: string, message: any) => ipcRenderer.invoke('db-add-message', conversationId, message),
+  getMessages: (conversationId: string, limit?: number) => ipcRenderer.invoke('db-get-messages', conversationId, limit),
+  saveSetting: (key: string, value: string) => ipcRenderer.invoke('db-save-setting', key, value),
+  getSetting: (key: string) => ipcRenderer.invoke('db-get-setting', key),
+  getAllSettings: () => ipcRenderer.invoke('db-get-all-settings'),
 } as ElectronAPI)

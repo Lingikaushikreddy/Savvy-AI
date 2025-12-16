@@ -58,6 +58,43 @@ export function initializeIpcHandlers(appState: AppState): void {
     return appState.whisperClient.transcribe(audioBuffer)
   })
 
+  // Database Handlers
+  ipcMain.handle('db-create-conversation', async (event, data) => {
+    return appState.databaseManager.createConversation(data)
+  })
+
+  ipcMain.handle('db-list-conversations', async (event, filters) => {
+    return appState.databaseManager.listConversations(filters)
+  })
+
+  ipcMain.handle('db-get-conversation', async (event, id) => {
+    return appState.databaseManager.getConversation(id)
+  })
+
+  ipcMain.handle('db-delete-conversation', async (event, id) => {
+    return appState.databaseManager.deleteConversation(id)
+  })
+
+  ipcMain.handle('db-add-message', async (event, conversationId, message) => {
+    return appState.databaseManager.addMessage(conversationId, message)
+  })
+
+  ipcMain.handle('db-get-messages', async (event, conversationId, limit) => {
+    return appState.databaseManager.getMessages(conversationId, limit)
+  })
+
+  ipcMain.handle('db-save-setting', async (event, key, value) => {
+    return appState.databaseManager.setSetting(key, value)
+  })
+
+  ipcMain.handle('db-get-setting', async (event, key) => {
+    return appState.databaseManager.getSetting(key)
+  })
+
+  ipcMain.handle('db-get-all-settings', async () => {
+    return appState.databaseManager.getAllSettings()
+  })
+
   ipcMain.handle('screen-capture-start', async (event, interval: number) => {
     appState.screenCaptureManager.startCapture(interval)
   })

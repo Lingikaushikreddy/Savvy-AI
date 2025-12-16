@@ -9,6 +9,7 @@ import { ScreenCaptureManager } from './capture/ScreenCaptureManager'
 import { OCRProcessor } from './capture/OCRProcessor'
 import { AudioCaptureManager } from './audio/AudioCaptureManager'
 import { WhisperClient } from './audio/WhisperClient'
+import { DatabaseManager } from './database/DatabaseManager'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -22,6 +23,7 @@ export class AppState {
   public ocrProcessor: OCRProcessor
   public audioCaptureManager: AudioCaptureManager
   public whisperClient: WhisperClient
+  public databaseManager: DatabaseManager
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'

@@ -99,9 +99,11 @@
     "@google/generative-ai": "^0.2.1",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-toast": "^1.2.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/fluent-ffmpeg": "^2.1.28",
     "active-win": "^8.2.1",
     "axios": "^1.13.2",
+    "better-sqlite3": "^12.5.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "diff": "^7.0.0",
@@ -123,7 +125,7 @@
     "sharp": "^0.33.5",
     "tailwind-merge": "^2.5.4",
     "tesseract.js": "^5.0.5",
-    "uuid": "^11.0.3",
+    "uuid": "^11.1.0",
     "zustand": "^5.0.9"
   }
 }
