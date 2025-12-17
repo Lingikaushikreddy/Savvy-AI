@@ -40,6 +40,15 @@ Savvy AI is a powerful desktop application designed to enhance your productivity
     ANTHROPIC_API_KEY=sk-ant-...
     ```
 
+## 📚 Documentation
+
+*   [User Guide](docs/USER_GUIDE.md): Getting started, features, and troubleshooting.
+*   [Developer Guide](docs/DEVELOPER_GUIDE.md): Architecture, setup, and contribution.
+*   [Build Guide](docs/BUILD.md): Instructions for building from source.
+*   [Privacy Policy](docs/PRIVACY_POLICY.md): How we handle data.
+*   [Security Policy](docs/SECURITY.md): Security measures and reporting.
+*   [Changelog](CHANGELOG.md): Release history.
+
 ## 🏃‍♂️ Running the App
 
 **Development Mode:**

@@ -182,9 +182,9 @@ export class GracefulDegradation {
 const ERROR_MESSAGES: Record<ErrorType, { title: string, message: string, action: string | null, learnMore: string | null }> = {
     [ErrorType.SCREEN_PERMISSION_DENIED]: {
         title: 'Screen Recording Permission Needed',
-        message: 'Anti-Gravity needs permission to record your screen.',
+        message: 'Savvy AI needs permission to record your screen.',
         action: 'Open System Preferences',
-        learnMore: 'https://docs.antigravity.ai/permissions/screen'
+        learnMore: 'https://github.com/Lingikaushikreddy/Savvy-AI/blob/main/docs/USER_GUIDE.md'
     },
     [ErrorType.AUDIO_PERMISSION_DENIED]: {
         title: 'Microphone Permission Needed',
@@ -196,7 +196,7 @@ const ERROR_MESSAGES: Record<ErrorType, { title: string, message: string, action
         title: 'Invalid API Key',
         message: 'Your OpenAI API key appears to be invalid.',
         action: 'Update API Key',
-        learnMore: 'https://docs.antigravity.ai/setup/api-keys'
+        learnMore: 'https://github.com/Lingikaushikreddy/Savvy-AI/blob/main/docs/USER_GUIDE.md'
     },
     [ErrorType.API_RATE_LIMIT]: {
         title: 'Rate Limit Reached',

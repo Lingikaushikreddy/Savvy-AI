@@ -1,0 +1,36 @@
+{
+    "appId": "com.thrillai.savvy-ai",
+    "productName": "Savvy AI",
+    "copyright": "Copyright © 2024 Thrill AI",
+    "directories": {
+        "output": "dist",
+        "buildResources": "resources"
+    },
+    "mac": {
+        "category": "public.app-category.productivity",
+        "target": [
+            "dmg",
+            "zip"
+        ],
+        "icon": "resources/icon.icns",
+        "hardenedRuntime": true,
+        "gatekeeperAssess": false,
+        "entitlements": "resources/entitlements.mac.plist",
+        "entitlementsInherit": "resources/entitlements.mac.plist"
+    },
+    "win": {
+        "target": [
+            "nsis",
+            "portable"
+        ],
+        "icon": "resources/icon.ico"
+    },
+    "linux": {
+        "target": [
+            "AppImage",
+            "deb"
+        ],
+        "icon": "resources/icon.png",
+        "category": "Utility"
+    }
+}
