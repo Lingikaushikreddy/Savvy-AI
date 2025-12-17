@@ -106,10 +106,18 @@ interface AppStore {
 
     // Actions
     triggerAI: () => void
+
+    // Advanced Status
+    audioLevel: number
+    setAudioLevel: (level: number) => void
+    tokenUsage: { current: number; limit: number; cost: number }
+    setTokenUsage: (usage: { current: number; limit: number; cost: number }) => void
+    connectionStatus: 'online' | 'offline'
+    setConnectionStatus: (status: 'online' | 'offline') => void
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-    isExpanded: true, // Default to expanded initially to show greetings
+    isExpanded: true,
     isVisible: true,
     isSettingsOpen: false,
     toggleExpanded: () => set((state) => ({ isExpanded: !state.isExpanded })),
@@ -135,5 +143,12 @@ export const useAppStore = create<AppStore>((set) => ({
 
     triggerAI: () => {
         /* logic to be hooked via effects or subscribers */
-    }
+    },
+
+    audioLevel: 0,
+    setAudioLevel: (level) => set({ audioLevel: level }),
+    tokenUsage: { current: 0, limit: 10000, cost: 0 },
+    setTokenUsage: (usage) => set({ tokenUsage: usage }),
+    connectionStatus: 'online',
+    setConnectionStatus: (status) => set({ connectionStatus: status })
 }))

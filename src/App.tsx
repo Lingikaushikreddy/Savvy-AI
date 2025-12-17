@@ -3,6 +3,7 @@ import { OverlayPanel } from './components/overlay/OverlayPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { Toaster } from './components/ui/toast'
 import { useAppStore } from './store/useAppStore'
+import { useAppListeners } from './hooks/useAppListeners'
 
 declare global {
   interface Window {
@@ -53,6 +54,8 @@ const App: React.FC = () => {
     clearData,
     triggerAI
   } = useAppStore()
+
+  useAppListeners()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

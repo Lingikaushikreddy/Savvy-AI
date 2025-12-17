@@ -77,6 +77,10 @@ export function initializeIpcHandlers(appState: AppState): void {
     appState.clearQueues()
   })
 
+  ipcMain.handle('context:analyze', async (_, transcript: string, screenText: string) => {
+    return appState.contextAnalyzer.analyzeContext(transcript, screenText || '')
+  })
+
   // --- Conversation Handlers ---
   ipcMain.handle('conversation:create', async (_, data) => appState.databaseManager.createConversation(data))
   ipcMain.handle('conversation:get', async (_, id) => appState.databaseManager.getConversation(id))

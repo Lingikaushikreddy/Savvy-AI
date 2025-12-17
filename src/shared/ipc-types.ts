@@ -14,6 +14,41 @@ export interface SettingsMap {
     [key: string]: any
 }
 
+// Context Analysis Types
+export type MeetingType =
+    | 'TECHNICAL_INTERVIEW'
+    | 'BEHAVIORAL_INTERVIEW'
+    | 'SALES_CALL'
+    | 'VC_PITCH'
+    | 'GENERAL_MEETING'
+    | 'UNKNOWN'
+
+export type MeetingPhase = 'INTRO' | 'MAIN_DISCUSSION' | 'Q_AND_A' | 'CLOSING' | 'FOLLOW_UP'
+
+export interface KeyMoment {
+    type: 'QUESTION' | 'OBJECTION' | 'DECISION' | 'TRANSITION'
+    content: string
+    timestamp: number
+    confidence: number
+    metadata: any
+}
+
+export interface Prediction {
+    type: 'NEXT_QUESTION' | 'NEXT_TOPIC' | 'NEXT_OBJECTION'
+    content: string
+    probability: number
+    preparedness: number // 0-1
+}
+
+export interface ContextAnalysis {
+    meetingType: MeetingType
+    confidence: number
+    currentPhase: MeetingPhase
+    detectedMoments: KeyMoment[]
+    predictions: Prediction[]
+    suggestions: string[]
+}
+
 // Window API
 export interface WindowApi {
     show: () => Promise<void>
@@ -41,6 +76,7 @@ export interface AiApi {
     ) => void
     stop: () => Promise<void>
     clearContext: () => Promise<void>
+    analyzeContext: (transcript: string, screenText: string) => Promise<ContextAnalysis>
 }
 
 // Conversation API

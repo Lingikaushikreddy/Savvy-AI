@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('api', {
     },
     stop: () => ipcRenderer.invoke('ai:stop'),
     clearContext: () => ipcRenderer.invoke('ai:clear-context'),
+    analyzeContext: (transcript: string, screenText: string) => ipcRenderer.invoke('context:analyze', transcript, screenText),
   },
 
   conversation: {

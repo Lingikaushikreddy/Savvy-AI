@@ -10,7 +10,7 @@ import { OCRProcessor } from './capture/OCRProcessor'
 import { AudioCaptureManager } from './audio/AudioCaptureManager'
 import { WhisperClient } from './audio/WhisperClient'
 import { DatabaseManager } from './database/DatabaseManager'
-import { ContextBuilder } from './ai/ContextBuilder'
+import { ContextAnalyzer } from './ai/ContextAnalyzer'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -26,6 +26,7 @@ export class AppState {
   public whisperClient: WhisperClient
   public databaseManager: DatabaseManager
   public contextBuilder: ContextBuilder
+  public contextAnalyzer: ContextAnalyzer
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'
@@ -36,30 +37,25 @@ export class AppState {
     output_format: Record<string, any>
     constraints: Array<Record<string, any>>
     test_cases: Array<Record<string, any>>
-  } | null = null // Allow null
+  } | null = null
 
   private hasDebugged: boolean = false
 
   // Processing events
   public readonly PROCESSING_EVENTS = {
-    //global states
     UNAUTHORIZED: 'procesing-unauthorized',
     NO_SCREENSHOTS: 'processing-no-screenshots',
-
-    //states for generating the initial solution
     INITIAL_START: 'initial-start',
     PROBLEM_EXTRACTED: 'problem-extracted',
     SOLUTION_SUCCESS: 'solution-success',
     INITIAL_SOLUTION_ERROR: 'solution-error',
-
-    //states for processing the debugging
     DEBUG_START: 'debug-start',
     DEBUG_SUCCESS: 'debug-success',
     DEBUG_ERROR: 'debug-error'
   } as const
 
   constructor() {
-    // Initialize WindowHelper with this
+    // Initialize WindowHelper
     this.windowHelper = new WindowHelper(this)
 
     // Initialize ScreenshotHelper
@@ -77,23 +73,21 @@ export class AppState {
 
     // Initialize ScreenCaptureManager
     this.screenCaptureManager = new ScreenCaptureManager()
-    // Optional: Start automatically? Or wait for specific event?
-    // this.screenCaptureManager.startCapture(2000)
 
     // Initialize OCRProcessor
     this.ocrProcessor = new OCRProcessor()
-    // Pre-initialize worker to save time later?
-    // this.ocrProcessor.initialize()
 
     // Initialize AudioCaptureManager
     this.audioCaptureManager = new AudioCaptureManager()
 
     // Initialize WhisperClient
-    // Note: API Key should be managed via Settings or Env. For now, it might be empty on init.
     this.whisperClient = new WhisperClient()
 
     // Initialize DatabaseManager
     this.databaseManager = new DatabaseManager()
+
+    // Initialize ContextAnalyzer
+    this.contextAnalyzer = new ContextAnalyzer(this.processingHelper.llmHelper)
 
     // Initialize ContextBuilder
     this.contextBuilder = new ContextBuilder(this)

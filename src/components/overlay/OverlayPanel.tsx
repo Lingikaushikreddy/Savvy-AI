@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
 import { ChevronRight, BrainCircuit } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
-import { StatusIndicator } from './StatusIndicator'
 import { ResponseDisplay } from './ResponseDisplay'
 import { QuickActions } from './QuickActions'
+import { MicrophoneIndicator } from '../status/MicrophoneIndicator'
+import { ConnectionStatus } from '../status/ConnectionStatus'
+import { ProcessingSpinner } from '../status/ProcessingSpinner'
 
 export const OverlayPanel: React.FC = () => {
     const {
@@ -80,8 +82,12 @@ export const OverlayPanel: React.FC = () => {
                     </AnimatePresence>
                 </div>
 
-                <div className="flex items-center gap-2 " style={{ WebkitAppRegion: 'no-drag' } as any}>
-                    <StatusIndicator status={status} />
+                <div className="flex items-center gap-3 " style={{ WebkitAppRegion: 'no-drag' } as any}>
+                    {/* Status Components */}
+                    <div className="flex items-center gap-2">
+                        <ConnectionStatus />
+                        <MicrophoneIndicator />
+                    </div>
 
                     <button
                         onClick={toggleExpanded}
@@ -109,6 +115,13 @@ export const OverlayPanel: React.FC = () => {
                     >
                         {/* Divider */}
                         <div className="h-px bg-gray-700/50 w-full mb-3" />
+
+                        {/* Processing Status Overlay/Inline */}
+                        {status === 'processing' && (
+                            <div className="mb-3">
+                                <ProcessingSpinner />
+                            </div>
+                        )}
 
                         <ResponseDisplay
                             content={currentResponse}
