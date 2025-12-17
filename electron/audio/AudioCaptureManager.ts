@@ -97,6 +97,11 @@ export class AudioCaptureManager extends EventEmitter {
     }
   }
 
+  public isSpeaking: boolean = false
+  private silenceThreshold: number = 500 // RMS threshold
+
+  // ...
+
   public getCurrentLevel(): number {
     return this.currentLevel
   }
@@ -113,6 +118,9 @@ export class AudioCaptureManager extends EventEmitter {
     }
     const rms = Math.sqrt(sum / (buffer.length / 2))
     this.currentLevel = rms
+
+    // Simple VAD
+    this.isSpeaking = rms > this.silenceThreshold
   }
 
   private addToRollingBuffer(data: Buffer) {
@@ -125,7 +133,7 @@ export class AudioCaptureManager extends EventEmitter {
     const maxBytes = bytesPerSecond * this.MAX_BUFFER_SIZE_SECONDS
 
     if (this.rollingBuffer.length > maxBytes) {
-      // Trim from beginning
+      // Optimize: Slice buffer to maintain size without growing indefinitely
       const overflow = this.rollingBuffer.length - maxBytes
       this.rollingBuffer = this.rollingBuffer.subarray(overflow)
     }

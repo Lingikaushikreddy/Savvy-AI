@@ -53,13 +53,16 @@ export class LLMRouter extends EventEmitter {
     private openai: OpenAI;
     private anthropic: Anthropic;
     private currentProvider: Provider = 'openai';
-    private currentModel: string = 'gpt-4-turbo'; // Default to vision capable model
+    private currentModel: string = 'gpt-4o'; // Default to vision capable model
+
+    private cache: Map<string, LLMResponse> = new Map();
+    private readonly MAX_CACHE = 50;
 
     // Default models for each provider
     private readonly DEFAULTS = {
         openai: {
-            model: 'gpt-4-turbo',
-            fallback: 'gpt-3.5-turbo',
+            model: 'gpt-4o',
+            fallback: 'gpt-4o-mini',
             temperature: 0.3,
         },
         anthropic: {
@@ -90,6 +93,16 @@ export class LLMRouter extends EventEmitter {
         this.currentModel = model;
     }
 
+    private getCacheKey(context: Context, options?: CompletionOptions): string {
+        try {
+            // Simple signature based on message content
+            // We ignore system prompt if not present, and options for simplicity unless crucial
+            return JSON.stringify({ m: context.messages, o: options })
+        } catch {
+            return ''
+        }
+    }
+
     /**
      * Complete a request (non-streaming)
      */
@@ -97,12 +110,28 @@ export class LLMRouter extends EventEmitter {
         context: Context,
         options?: CompletionOptions
     ): Promise<LLMResponse> {
+        const key = this.getCacheKey(context, options)
+        if (key && this.cache.has(key)) {
+            console.log('LLMRouter: Cache Hit')
+            return this.cache.get(key)!
+        }
+
         try {
+            let response: LLMResponse
             if (this.currentProvider === 'openai') {
-                return await this.completeOpenAI(context, options);
+                response = await this.completeOpenAI(context, options);
             } else {
-                return await this.completeAnthropic(context, options);
+                response = await this.completeAnthropic(context, options);
             }
+
+            if (key) {
+                if (this.cache.size >= this.MAX_CACHE) {
+                    const first = this.cache.keys().next().value
+                    this.cache.delete(first)
+                }
+                this.cache.set(key, response)
+            }
+            return response
         } catch (error) {
             console.error('Error in LLMRouter.complete:', error);
             throw error;

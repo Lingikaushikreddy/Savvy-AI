@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Message } from '../types/chat'
+import { MessageItem } from '../components/chat/MessageItem'
 import { Send, Image as ImageIcon, X, Settings, Minus } from 'lucide-react'
 
 interface ChatProps {
@@ -62,33 +63,7 @@ const Chat: React.FC<ChatProps> = ({ messages, onSendMessage, onCaptureScreensho
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-cyan-600/80 text-white rounded-br-none'
-                  : 'bg-white/10 text-gray-100 rounded-bl-none border border-white/5'
-              }`}
-            >
-              {msg.type === 'image' ? (
-                <div className="space-y-2">
-                  <span className="text-xs opacity-70 italic">Screenshot caught</span>
-                  {msg.metadata?.preview && (
-                    <img
-                      src={msg.metadata.preview}
-                      alt="Screenshot"
-                      className="rounded-lg max-w-full"
-                    />
-                  )}
-                </div>
-              ) : (
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              )}
-            </div>
-          </div>
+          <MessageItem key={msg.id} message={msg} />
         ))}
         {isTyping && (
           <div className="flex justify-start">

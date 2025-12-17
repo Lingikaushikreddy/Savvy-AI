@@ -2,7 +2,7 @@
 
 import path from 'node:path'
 import fs from 'node:fs'
-import { app } from 'electron'
+import { app, nativeImage } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import screenshot from 'screenshot-desktop'
 
@@ -89,8 +89,18 @@ export class ScreenshotHelper {
         }
       }
     } else {
-      screenshotPath = path.join(this.extraScreenshotDir, `${uuidv4()}.png`)
-      await screenshot({ filename: screenshotPath })
+      screenshotPath = path.join(this.extraScreenshotDir, `${uuidv4()}.jpg`)
+      await screenshot({ filename: screenshotPath, format: 'jpg' })
+
+      // Optimize: Resize and Compress
+      try {
+        const image = nativeImage.createFromPath(screenshotPath)
+        const resized = image.resize({ height: 720 })
+        const buffer = resized.toJPEG(60)
+        await fs.promises.writeFile(screenshotPath, buffer)
+      } catch (e) {
+        console.error('Optimization failed:', e)
+      }
 
       this.extraScreenshotQueue.push(screenshotPath)
       if (this.extraScreenshotQueue.length > this.MAX_SCREENSHOTS) {
@@ -112,7 +122,8 @@ export class ScreenshotHelper {
   public async getImagePreview(filepath: string): Promise<string> {
     try {
       const data = await fs.promises.readFile(filepath)
-      return `data:image/png;base64,${data.toString('base64')}`
+      const ext = path.extname(filepath).toLowerCase().replace('.', '') || 'png'
+      return `data:image/${ext === 'svg' ? 'svg+xml' : ext};base64,${data.toString('base64')}`
     } catch (error) {
       console.error('Error reading image:', error)
       throw error

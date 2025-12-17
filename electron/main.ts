@@ -13,6 +13,7 @@ import { DatabaseManager } from './database/DatabaseManager'
 import { ContextAnalyzer } from './ai/ContextAnalyzer'
 import { ContextBuilder } from './ai/ContextBuilder'
 import { NotesGenerator } from './ai/NotesGenerator'
+import { PerformanceMonitor } from './monitoring/PerformanceMonitor'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -30,6 +31,7 @@ export class AppState {
   public contextBuilder: ContextBuilder
   public contextAnalyzer: ContextAnalyzer
   public notesGenerator: NotesGenerator
+  public performanceMonitor: PerformanceMonitor
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'

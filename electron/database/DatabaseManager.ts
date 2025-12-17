@@ -158,7 +158,22 @@ export class DatabaseManager {
       
       CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_captures_conv ON captures(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at);
     `)
+
+        // Performance optimization
+        this.optimize()
+    }
+
+    public optimize() {
+        try {
+            this.db.exec('PRAGMA optimize;')
+            // VACUUM is heavy, usually do it on shutdown or less frequent.
+            // Using auto_vacuum or just PRAGMA optimize for now.
+        } catch (e) {
+            console.error('Database optimization failed:', e)
+        }
     }
 
     // --- Conversations ---

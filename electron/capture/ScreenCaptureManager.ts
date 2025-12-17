@@ -106,16 +106,18 @@ export class ScreenCaptureManager {
 
     // Let's try to find the window in sources by name/title first.
 
+    // Optimize: Limit resolution to 720p height for OCR performance
+    const scale = Math.min(1, 720 / (windowInfo.bounds.height || 720))
+    const targetWidth = Math.floor((windowInfo.bounds.width || 1280) * scale)
+    const targetHeight = Math.floor((windowInfo.bounds.height || 720) * scale)
+
     const sources = await desktopCapturer.getSources({
       types: ['window', 'screen'],
-      thumbnailSize: { width: windowInfo.bounds.width, height: windowInfo.bounds.height },
+      thumbnailSize: { width: targetWidth, height: targetHeight },
       fetchWindowIcons: false
     })
 
     // Try to find matching source
-    // Note: activeWindow returns appName: "Code", title: "file.ts".
-    // Source name might be "file.ts - Visual Studio Code" or just "file.ts".
-    // This is heuristic.
     const matchedSource = sources.find(
       (s) =>
         s.name.includes(windowInfo.title) || (windowInfo.title && s.name.includes(windowInfo.title))
@@ -124,17 +126,15 @@ export class ScreenCaptureManager {
     let base64Image = ''
 
     if (matchedSource) {
-      // Resize for performance?
-      // const resized = matchedSource.thumbnail.resize({ width: 800 })
-      // use original for now but maybe limit size if huge
-      base64Image = matchedSource.thumbnail.toDataURL()
+      // Optimize: Compress using JPEG at 60% quality
+      base64Image = `data:image/jpeg;base64,${matchedSource.thumbnail.toJPEG(60).toString('base64')}`
     } else {
       // Fallback
       const screenSource = sources.find(
         (s) => s.name.includes('Screen 1') || s.name.includes('Entire Screen')
       )
       if (screenSource) {
-        base64Image = screenSource.thumbnail.toDataURL()
+        base64Image = `data:image/jpeg;base64,${screenSource.thumbnail.toJPEG(60).toString('base64')}`
       }
     }
 
