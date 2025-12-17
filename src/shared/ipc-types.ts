@@ -96,6 +96,22 @@ export interface SettingsApi {
     validateApiKey: (provider: string, key: string) => Promise<boolean>
 }
 
+// Shortcut API
+export interface ShortcutConfig {
+    key: string
+    description: string
+    action: string
+    enabled: boolean
+}
+
+export type ShortcutMap = Record<string, ShortcutConfig>
+
+export interface ShortcutApi {
+    getAll: () => Promise<ShortcutMap>
+    update: (action: string, key: string) => Promise<void>
+    reset: () => Promise<void>
+}
+
 // Main API interface exposed to window
 export interface ElectronApi {
     window: WindowApi
@@ -103,4 +119,5 @@ export interface ElectronApi {
     ai: AiApi
     conversation: ConversationApi
     settings: SettingsApi
+    shortcuts: ShortcutApi
 }

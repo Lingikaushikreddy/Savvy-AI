@@ -50,6 +50,12 @@ contextBridge.exposeInMainWorld('api', {
     getAll: () => ipcRenderer.invoke('settings:get-all'),
     validateApiKey: (provider: string, key: string) => ipcRenderer.invoke('settings:validate-api-key', provider, key),
   },
+
+  shortcuts: {
+    getAll: () => ipcRenderer.invoke('shortcuts:get-all'),
+    update: (action: string, key: string) => ipcRenderer.invoke('shortcuts:update', action, key),
+    reset: () => ipcRenderer.invoke('shortcuts:reset'),
+  },
 })
 
 // Keep legacy API for backward compatibility during migration

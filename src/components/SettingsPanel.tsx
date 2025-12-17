@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Settings as SettingsIcon, Monitor, Mic, BrainCircuit, Key, Shield, BookOpen, Save } from 'lucide-react'
+import { X, Settings as SettingsIcon, Monitor, Mic, BrainCircuit, Key, Shield, BookOpen, Save, Keyboard } from 'lucide-react'
 import { useAppStore, Settings } from '../store/useAppStore'
-import { Toaster, useToast } from './ui/toast' // Using our updated toast exports
+import { Toaster, useToast } from './ui/toast'
+import { ShortcutEditor } from './settings/ShortcutEditor'
 
-type Category = 'general' | 'capture' | 'ai' | 'playbook' | 'apiKeys' | 'privacy'
+type Category = 'general' | 'capture' | 'ai' | 'playbook' | 'apiKeys' | 'privacy' | 'shortcuts'
 
 const categories: { id: Category; label: string; icon: React.ReactNode }[] = [
     { id: 'general', label: 'General', icon: <SettingsIcon className="w-4 h-4" /> },
+    { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard className="w-4 h-4" /> },
     { id: 'capture', label: 'Capture', icon: <Monitor className="w-4 h-4" /> },
     { id: 'ai', label: 'AI & Models', icon: <BrainCircuit className="w-4 h-4" /> },
     { id: 'playbook', label: 'Playbooks', icon: <BookOpen className="w-4 h-4" /> },
@@ -95,8 +96,8 @@ export const SettingsPanel: React.FC = () => {
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
                                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${activeCategory === cat.id
-                                        ? 'bg-blue-600/20 text-blue-400'
-                                        : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+                                    ? 'bg-blue-600/20 text-blue-400'
+                                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
                                     }`}
                             >
                                 {cat.icon}
@@ -197,8 +198,8 @@ export const SettingsPanel: React.FC = () => {
                                             <button
                                                 onClick={() => handleChange('ai', 'provider', 'openai')}
                                                 className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${localSettings.ai.provider === 'openai'
-                                                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                                                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
                                                     }`}
                                             >
                                                 OpenAI
@@ -206,8 +207,8 @@ export const SettingsPanel: React.FC = () => {
                                             <button
                                                 onClick={() => handleChange('ai', 'provider', 'anthropic')}
                                                 className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${localSettings.ai.provider === 'anthropic'
-                                                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                                                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
                                                     }`}
                                             >
                                                 Anthropic
@@ -333,6 +334,11 @@ export const SettingsPanel: React.FC = () => {
                                 </>
                             )}
 
+                            {/* SHORTCUTS SETTINGS */}
+                            {activeCategory === 'shortcuts' && (
+                                <ShortcutEditor />
+                            )}
+
 
                         </div>
                     </div>
@@ -349,8 +355,8 @@ export const SettingsPanel: React.FC = () => {
                             onClick={handleSave}
                             disabled={!isDirty}
                             className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-medium text-white transition-all ${isDirty
-                                    ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20'
-                                    : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                ? 'bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/20'
+                                : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                                 }`}
                         >
                             <Save className="w-4 h-4" />

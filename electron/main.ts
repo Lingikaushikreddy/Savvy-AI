@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { initializeIpcHandlers } from './ipcHandlers'
 import { WindowHelper } from './WindowHelper'
 import { ScreenshotHelper } from './ScreenshotHelper'
-import { ShortcutsHelper } from './shortcuts'
+import { ShortcutManager } from './shortcuts/ShortcutManager'
 import { ProcessingHelper } from './ProcessingHelper'
 import { ClipboardHelper } from './ClipboardHelper'
 import { ScreenCaptureManager } from './capture/ScreenCaptureManager'
@@ -11,13 +11,14 @@ import { AudioCaptureManager } from './audio/AudioCaptureManager'
 import { WhisperClient } from './audio/WhisperClient'
 import { DatabaseManager } from './database/DatabaseManager'
 import { ContextAnalyzer } from './ai/ContextAnalyzer'
+import { ContextBuilder } from './ai/ContextBuilder'
 
 export class AppState {
   private static instance: AppState | null = null
 
   private windowHelper: WindowHelper
   private screenshotHelper: ScreenshotHelper
-  public shortcutsHelper: ShortcutsHelper
+  public shortcutManager: ShortcutManager
   public processingHelper: ProcessingHelper
   private clipboardHelper: ClipboardHelper
   public screenCaptureManager: ScreenCaptureManager
@@ -64,8 +65,8 @@ export class AppState {
     // Initialize ProcessingHelper
     this.processingHelper = new ProcessingHelper(this)
 
-    // Initialize ShortcutsHelper
-    this.shortcutsHelper = new ShortcutsHelper(this)
+    // Initialize ShortcutManager
+    this.shortcutManager = new ShortcutManager(this)
 
     // Initialize ClipboardHelper
     this.clipboardHelper = new ClipboardHelper(this)
@@ -226,11 +227,12 @@ async function initializeApp() {
   // Initialize IPC handlers before window creation
   initializeIpcHandlers(appState)
 
+  // Initialize Shortcuts
+  await appState.shortcutManager.initialize()
+
   app.whenReady().then(() => {
     console.log('App is ready')
     appState.createWindow()
-    // Register global shortcuts using ShortcutsHelper
-    appState.shortcutsHelper.registerGlobalShortcuts()
   })
 
   app.on('activate', () => {
@@ -253,3 +255,4 @@ async function initializeApp() {
 
 // Start the application
 initializeApp().catch(console.error)
+

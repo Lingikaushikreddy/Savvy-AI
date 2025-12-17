@@ -103,6 +103,11 @@ export function initializeIpcHandlers(appState: AppState): void {
     return true
   })
 
+  // --- Shortcut Handlers ---
+  ipcMain.handle('shortcuts:get-all', async () => appState.shortcutManager.getAllShortcuts())
+  ipcMain.handle('shortcuts:update', async (_, action: string, key: string) => appState.shortcutManager.updateShortcut(action, key))
+  ipcMain.handle('shortcuts:reset', async () => appState.shortcutManager.resetToDefaults())
+
   // Legacy handlers for backward compatibility if needed, or we just remove them
   // Keeping 'transcribe-audio' as it's used
   ipcMain.handle('transcribe-audio', async (event, buffer: Buffer) => {
