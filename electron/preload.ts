@@ -1,195 +1,60 @@
+
 import { contextBridge, ipcRenderer } from 'electron'
 
-// Types for the exposed Electron API
-interface ElectronAPI {
-  updateContentDimensions: (dimensions: { width: number; height: number }) => Promise<void>
-  getScreenshots: () => Promise<Array<{ path: string; preview: string }>>
-  deleteScreenshot: (path: string) => Promise<{ success: boolean; error?: string }>
-  recognizeText: (path: string) => Promise<string>
-  onScreenshotTaken: (callback: (data: { path: string; preview: string }) => void) => () => void
-  onSolutionsReady: (callback: (solutions: string) => void) => () => void
-  onResetView: (callback: () => void) => () => void
-  onSolutionStart: (callback: () => void) => () => void
-  onDebugStart: (callback: () => void) => () => void
-  onDebugSuccess: (callback: (data: any) => void) => () => void
-  onSolutionError: (callback: (error: string) => void) => () => void
-  onProcessingNoScreenshots: (callback: () => void) => () => void
-  onProblemExtracted: (callback: (data: any) => void) => () => void
-  onSolutionSuccess: (callback: (data: any) => void) => () => void
-
-  onUnauthorized: (callback: () => void) => () => void
-  onDebugError: (callback: (error: string) => void) => () => void
-  takeScreenshot: () => Promise<void>
-  moveWindowLeft: () => Promise<void>
-  moveWindowRight: () => Promise<void>
-  analyzeAudioFromBase64: (
-    data: string,
-    mimeType: string
-  ) => Promise<{ text: string; timestamp: number }>
-  analyzeAudioFile: (path: string) => Promise<{ text: string; timestamp: number }>
-  analyzeImageFile: (path: string) => Promise<void>
-  quitApp: () => Promise<void>
-  setIgnoreMouseEvents: (ignore: boolean, options?: { forward: boolean }) => Promise<void>
-  onClipboardTextChanged: (callback: (text: string) => void) => () => void
-  onClipboardImageChanged: (callback: (dataUrl: string) => void) => () => void
-  startScreenCapture: (interval?: number) => Promise<void>
-  stopScreenCapture: () => Promise<void>
-  captureScreenOnce: () => Promise<any>
-  recognizeTextAdvanced: (image: string) => Promise<any>
-  startAudioCapture: () => Promise<void>
-  stopAudioCapture: () => Promise<void>
-  getAudioChunk: () => Promise<any>
-  getAudioLevel: () => Promise<number>
-  transcribeAudio: (audioBuffer: any) => Promise<any>
-}
-
-export const PROCESSING_EVENTS = {
-  //global states
-  UNAUTHORIZED: 'procesing-unauthorized',
-  NO_SCREENSHOTS: 'processing-no-screenshots',
-
-  //states for generating the initial solution
-  INITIAL_START: 'initial-start',
-  PROBLEM_EXTRACTED: 'problem-extracted',
-  SOLUTION_SUCCESS: 'solution-success',
-  INITIAL_SOLUTION_ERROR: 'solution-error',
-
-  //states for processing the debugging
-  DEBUG_START: 'debug-start',
-  DEBUG_SUCCESS: 'debug-success',
-  DEBUG_ERROR: 'debug-error'
-} as const
-
-// Expose the Electron API to the renderer process
-contextBridge.exposeInMainWorld('electronAPI', {
-  updateContentDimensions: (dimensions: { width: number; height: number }) =>
-    ipcRenderer.invoke('update-content-dimensions', dimensions),
-  takeScreenshot: () => ipcRenderer.invoke('take-screenshot'),
-  getScreenshots: () => ipcRenderer.invoke('get-screenshots'),
-  deleteScreenshot: (path: string) => ipcRenderer.invoke('delete-screenshot', path),
-  recognizeText: (path: string) => ipcRenderer.invoke('recognize-text', path),
-
-  // Event listeners
-  onScreenshotTaken: (callback: (data: { path: string; preview: string }) => void) => {
-    const subscription = (_: any, data: { path: string; preview: string }) => callback(data)
-    ipcRenderer.on('screenshot-taken', subscription)
-    return () => {
-      ipcRenderer.removeListener('screenshot-taken', subscription)
-    }
-  },
-  onSolutionsReady: (callback: (solutions: string) => void) => {
-    const subscription = (_: any, solutions: string) => callback(solutions)
-    ipcRenderer.on('solutions-ready', subscription)
-    return () => {
-      ipcRenderer.removeListener('solutions-ready', subscription)
-    }
-  },
-  onResetView: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on('reset-view', subscription)
-    return () => {
-      ipcRenderer.removeListener('reset-view', subscription)
-    }
-  },
-  onSolutionStart: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on(PROCESSING_EVENTS.INITIAL_START, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.INITIAL_START, subscription)
-    }
-  },
-  onDebugStart: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on(PROCESSING_EVENTS.DEBUG_START, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.DEBUG_START, subscription)
-    }
+// --- Secure API Exposure ---
+contextBridge.exposeInMainWorld('api', {
+  window: {
+    show: () => ipcRenderer.invoke('window:show'),
+    hide: () => ipcRenderer.invoke('window:hide'),
+    toggle: () => ipcRenderer.invoke('window:toggle'),
+    move: (x: number, y: number) => ipcRenderer.invoke('window:move', x, y),
+    resize: (w: number, h: number) => ipcRenderer.invoke('window:resize', w, h),
   },
 
-  onDebugSuccess: (callback: (data: any) => void) => {
-    ipcRenderer.on('debug-success', (_event, data) => callback(data))
-    return () => {
-      ipcRenderer.removeListener('debug-success', (_event, data) => callback(data))
-    }
-  },
-  onDebugError: (callback: (error: string) => void) => {
-    const subscription = (_: any, error: string) => callback(error)
-    ipcRenderer.on(PROCESSING_EVENTS.DEBUG_ERROR, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.DEBUG_ERROR, subscription)
-    }
-  },
-  onSolutionError: (callback: (error: string) => void) => {
-    const subscription = (_: any, error: string) => callback(error)
-    ipcRenderer.on(PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.INITIAL_SOLUTION_ERROR, subscription)
-    }
-  },
-  onProcessingNoScreenshots: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on(PROCESSING_EVENTS.NO_SCREENSHOTS, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.NO_SCREENSHOTS, subscription)
-    }
+  capture: {
+    start: () => ipcRenderer.invoke('capture:start'),
+    stop: () => ipcRenderer.invoke('capture:stop'),
+    getStatus: () => ipcRenderer.invoke('capture:status'),
+    requestPermissions: () => ipcRenderer.invoke('capture:request-permissions'),
   },
 
-  onProblemExtracted: (callback: (data: any) => void) => {
-    const subscription = (_: any, data: any) => callback(data)
-    ipcRenderer.on(PROCESSING_EVENTS.PROBLEM_EXTRACTED, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.PROBLEM_EXTRACTED, subscription)
-    }
-  },
-  onSolutionSuccess: (callback: (data: any) => void) => {
-    const subscription = (_: any, data: any) => callback(data)
-    ipcRenderer.on(PROCESSING_EVENTS.SOLUTION_SUCCESS, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.SOLUTION_SUCCESS, subscription)
-    }
-  },
-  onUnauthorized: (callback: () => void) => {
-    const subscription = () => callback()
-    ipcRenderer.on(PROCESSING_EVENTS.UNAUTHORIZED, subscription)
-    return () => {
-      ipcRenderer.removeListener(PROCESSING_EVENTS.UNAUTHORIZED, subscription)
-    }
-  },
-  moveWindowLeft: () => ipcRenderer.invoke('move-window-left'),
-  moveWindowRight: () => ipcRenderer.invoke('move-window-right'),
-  analyzeAudioFromBase64: (data: string, mimeType: string) =>
-    ipcRenderer.invoke('analyze-audio-base64', data, mimeType),
-  analyzeAudioFile: (path: string) => ipcRenderer.invoke('analyze-audio-file', path),
-  analyzeImageFile: (path: string) => ipcRenderer.invoke('analyze-image-file', path),
-  quitApp: () => ipcRenderer.invoke('quit-app'),
-  setIgnoreMouseEvents: (ignore: boolean, options?: { forward: boolean }) =>
-    ipcRenderer.invoke('set-ignore-mouse-events', ignore, options),
-
-  onClipboardTextChanged: (callback: (text: string) => void) => {
-    const subscription = (_: any, text: string) => callback(text)
-    ipcRenderer.on('clipboard-text-changed', subscription)
-    return () => ipcRenderer.removeListener('clipboard-text-changed', subscription)
-  },
-  onClipboardImageChanged: (callback: (dataUrl: string) => void) => {
-    const subscription = (_: any, dataUrl: string) => callback(dataUrl)
-    ipcRenderer.on('clipboard-image-changed', subscription)
-    return () => ipcRenderer.removeListener('clipboard-image-changed', subscription)
+  ai: {
+    query: (question: string) => ipcRenderer.invoke('ai:query', question),
+    stream: (question: string, onChunk: (chunk: string) => void, onEnd: () => void) => {
+      const handleChunk = (_: any, chunk: string) => onChunk(chunk)
+      const handleEnd = () => {
+        ipcRenderer.removeListener('ai:stream-chunk', handleChunk)
+        ipcRenderer.removeListener('ai:stream-end', handleEnd)
+        onEnd()
+      }
+      ipcRenderer.on('ai:stream-chunk', handleChunk)
+      ipcRenderer.on('ai:stream-end', handleEnd)
+      ipcRenderer.send('ai:stream', question)
+    },
+    stop: () => ipcRenderer.invoke('ai:stop'),
+    clearContext: () => ipcRenderer.invoke('ai:clear-context'),
   },
 
-  // Screen Capture API
-  startScreenCapture: (interval?: number) => ipcRenderer.invoke('screen-capture-start', interval),
-  stopScreenCapture: () => ipcRenderer.invoke('screen-capture-stop'),
-  captureScreenOnce: () => ipcRenderer.invoke('screen-capture-once'),
-  recognizeTextAdvanced: (image: string) => ipcRenderer.invoke('recognize-text-advanced', image),
+  conversation: {
+    create: (data: any) => ipcRenderer.invoke('conversation:create', data),
+    get: (id: string) => ipcRenderer.invoke('conversation:get', id),
+    list: (filters: any) => ipcRenderer.invoke('conversation:list', filters),
+    delete: (id: string) => ipcRenderer.invoke('conversation:delete', id),
+    export: (id: string) => ipcRenderer.invoke('conversation:export', id),
+  },
 
-  // Audio API
-  startAudioCapture: () => ipcRenderer.invoke('audio-start'),
-  stopAudioCapture: () => ipcRenderer.invoke('audio-stop'),
-  getAudioChunk: () => ipcRenderer.invoke('audio-get-chunk'),
-  getAudioLevel: () => ipcRenderer.invoke('audio-get-level'),
+  settings: {
+    get: (key: string) => ipcRenderer.invoke('settings:get', key),
+    set: (key: string, value: any) => ipcRenderer.invoke('settings:set', key, value),
+    getAll: () => ipcRenderer.invoke('settings:get-all'),
+    validateApiKey: (provider: string, key: string) => ipcRenderer.invoke('settings:validate-api-key', provider, key),
+  },
+})
+
+// Keep legacy API for backward compatibility during migration
+// Note: We are mocking the old structure to point to new or legacy handlers where appropriate
+contextBridge.exposeInMainWorld('electron', {
   transcribeAudio: (buffer: ArrayBuffer) => ipcRenderer.invoke('transcribe-audio', buffer),
-
-  // Database
   createConversation: (data: any) => ipcRenderer.invoke('db-create-conversation', data),
   listConversations: (filters: any) => ipcRenderer.invoke('db-list-conversations', filters),
   getConversation: (id: string) => ipcRenderer.invoke('db-get-conversation', id),
@@ -199,4 +64,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSetting: (key: string, value: string) => ipcRenderer.invoke('db-save-setting', key, value),
   getSetting: (key: string) => ipcRenderer.invoke('db-get-setting', key),
   getAllSettings: () => ipcRenderer.invoke('db-get-all-settings'),
-} as ElectronAPI)
+  startScreenCapture: (interval: number) => ipcRenderer.invoke('screen-capture-start', interval),
+  stopScreenCapture: () => ipcRenderer.invoke('screen-capture-stop'),
+  captureScreenOnce: () => ipcRenderer.invoke('screen-capture-once'),
+
+  // Legacy Window controls
+  hideWindow: () => ipcRenderer.invoke('window:hide'),
+  showWindow: () => ipcRenderer.invoke('window:show'),
+  toggleWindow: () => ipcRenderer.invoke('window:toggle'),
+  updateContentDimensions: (dimensions: { width: number; height: number }) =>
+    ipcRenderer.invoke('window:resize', dimensions.width, dimensions.height),
+
+  // Legacy Screen Capture
+  takeScreenshot: () => ipcRenderer.invoke('take-screenshot'),
+  deleteScreenshot: (path: string) => ipcRenderer.invoke('delete-screenshot', path),
+  recognizeText: (path: string) => ipcRenderer.invoke('recognize-text', path),
+  recognizeTextAdvanced: (image: string) => ipcRenderer.invoke('recognize-text-advanced', image),
+
+  // Legacy Audio
+  startAudioCapture: () => ipcRenderer.invoke('audio-start'), // These might need to be re-mapped to new capture:start? 
+  // keeping separate if handlers exist
+  stopAudioCapture: () => ipcRenderer.invoke('audio-stop'),
+  getAudioChunk: () => ipcRenderer.invoke('audio-get-chunk'),
+  getAudioLevel: () => ipcRenderer.invoke('audio-get-level'),
+})

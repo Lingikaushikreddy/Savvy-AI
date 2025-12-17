@@ -10,6 +10,7 @@ import { OCRProcessor } from './capture/OCRProcessor'
 import { AudioCaptureManager } from './audio/AudioCaptureManager'
 import { WhisperClient } from './audio/WhisperClient'
 import { DatabaseManager } from './database/DatabaseManager'
+import { ContextBuilder } from './ai/ContextBuilder'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -24,6 +25,7 @@ export class AppState {
   public audioCaptureManager: AudioCaptureManager
   public whisperClient: WhisperClient
   public databaseManager: DatabaseManager
+  public contextBuilder: ContextBuilder
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'
@@ -89,6 +91,12 @@ export class AppState {
     // Initialize WhisperClient
     // Note: API Key should be managed via Settings or Env. For now, it might be empty on init.
     this.whisperClient = new WhisperClient()
+
+    // Initialize DatabaseManager
+    this.databaseManager = new DatabaseManager()
+
+    // Initialize ContextBuilder
+    this.contextBuilder = new ContextBuilder(this)
   }
 
   public static getInstance(): AppState {

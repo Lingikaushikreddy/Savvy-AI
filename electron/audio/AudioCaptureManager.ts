@@ -19,7 +19,7 @@ export interface AudioBufferChunk {
 export class AudioCaptureManager extends EventEmitter {
   private micInstance: any
   private micInputStream: any
-  private isCapturing: boolean = false
+  public isCapturing: boolean = false
   private audioBuffer: Buffer[] = []
   private readonly MAX_BUFFER_SIZE_SECONDS = 30
   private readonly SAMPLE_RATE = 16000

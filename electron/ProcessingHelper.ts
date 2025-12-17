@@ -12,7 +12,7 @@ const MOCK_API_WAIT_TIME = Number(process.env.MOCK_API_WAIT_TIME) || 500
 
 export class ProcessingHelper {
   private appState: AppState
-  private llmHelper: LLMHelper
+  public llmHelper: LLMHelper
   private currentProcessingAbortController: AbortController | null = null
   private currentExtraProcessingAbortController: AbortController | null = null
 

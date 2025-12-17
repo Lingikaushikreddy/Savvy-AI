@@ -20,11 +20,11 @@ export interface CaptureResult {
 
 export class ScreenCaptureManager {
   private intervalId: NodeJS.Timeout | null = null
-  private isCapturing: boolean = false
+  public isCapturing: boolean = false
   private monitorInterval: number = 2000
   private lastCapture: string | null = null
 
-  constructor() {}
+  constructor() { }
 
   public startCapture(interval: number = 2000): void {
     if (this.isCapturing) return

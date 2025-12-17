@@ -1,17 +1,16 @@
-
 import fs from 'fs'
 import { LLMRouter, Context, MessageContent } from './ai/LLMRouter'
 import { PlaybookManager } from './ai/PlaybookManager'
 
 export class LLMHelper {
-  private router: LLMRouter
+  public llmRouter: LLMRouter
   private playbookManager: PlaybookManager
 
   constructor() {
-    this.router = new LLMRouter()
+    this.llmRouter = new LLMRouter()
     // Default to OpenAI GPT-4o which is good for vision and reasoning
-    this.router.setProvider('openai')
-    this.router.setModel('gpt-4o')
+    this.llmRouter.setProvider('openai')
+    this.llmRouter.setModel('gpt-4o')
     this.playbookManager = new PlaybookManager()
   }
 
@@ -28,7 +27,7 @@ export class LLMHelper {
   }
 
   public getRouter(): LLMRouter {
-    return this.router
+    return this.llmRouter
   }
 
   public async extractProblemFromImages(imagePaths: string[]) {
@@ -68,7 +67,7 @@ export class LLMHelper {
         messages: [{ role: 'user', content }]
       }
 
-      const response = await this.router.complete(context, {
+      const response = await this.llmRouter.complete(context, {
         temperature: 0.3,
         // GPT-4o default. 
       })
@@ -109,7 +108,7 @@ ${playbook.responseFormat.useSTARMethod ? "Use the STAR method for the main answ
         messages: [{ role: 'user', content: prompt }]
       }
 
-      const response = await this.router.complete(context)
+      const response = await this.llmRouter.complete(context)
       console.log('[LLMHelper] LLMRouter returned result.')
 
       const text = this.cleanJsonResponse(response.text)
@@ -159,7 +158,7 @@ ${playbook.responseFormat.useSTARMethod ? "Use the STAR method for the main answ
         messages: [{ role: 'user', content }]
       }
 
-      const response = await this.router.complete(context)
+      const response = await this.llmRouter.complete(context)
       const text = this.cleanJsonResponse(response.text)
       const parsed = JSON.parse(text)
       console.log('[LLMHelper] Parsed debug LLM response:', parsed)
@@ -216,7 +215,7 @@ ${playbook.responseFormat.useSTARMethod ? "Use the STAR method for the main answ
         messages: [{ role: 'user', content }]
       }
 
-      const response = await this.router.complete(context)
+      const response = await this.llmRouter.complete(context)
       return { text: response.text, timestamp: Date.now() }
     } catch (error) {
       console.error('Error analyzing image file:', error)
