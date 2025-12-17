@@ -213,6 +213,7 @@ export function initializeIpcHandlers(appState: AppState): void {
     app.quit()
   })
 
+  // ...
   ipcMain.handle(
     'set-ignore-mouse-events',
     (event, ignore: boolean, options?: { forward: boolean }) => {
@@ -222,4 +223,10 @@ export function initializeIpcHandlers(appState: AppState): void {
       }
     }
   )
+
+  ipcMain.handle('debug:toggle', async (_, enabled: boolean) => {
+    appState.logger.setDebugMode(enabled)
+    appState.logger.info('IPC', `Debug mode set to ${enabled}`)
+    return true
+  })
 }

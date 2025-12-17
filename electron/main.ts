@@ -14,6 +14,7 @@ import { ContextAnalyzer } from './ai/ContextAnalyzer'
 import { ContextBuilder } from './ai/ContextBuilder'
 import { NotesGenerator } from './ai/NotesGenerator'
 import { PerformanceMonitor } from './monitoring/PerformanceMonitor'
+import { Logger } from './logging/Logger'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -32,6 +33,7 @@ export class AppState {
   public contextAnalyzer: ContextAnalyzer
   public notesGenerator: NotesGenerator
   public performanceMonitor: PerformanceMonitor
+  public logger: Logger
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'
