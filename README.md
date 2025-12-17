@@ -6,11 +6,11 @@ Savvy AI is a powerful desktop application designed to enhance your productivity
 
 ## 🚀 Key Features
 
-*   **Contextual OCR**: Automatically extracts and understands text from your screen, intelligently detecting the context (Code Editor, Terminal, Browser, Presentation) to provide relevant assistance. Powered by Tesseract.js.
-*   **Audio Intelligence**: Captures system audio and microphone input in real-time for meeting transcriptions and insights. Powered by OpenAI Whisper.
-*   **Invisible Overlay**: An always-on-top, transparent interface that sits over your applications without obstructing your workflow.
-*   **Multi-Provider AI**: Features a robust LLM Router supporting **OpenAI (GPT-4o)** and **Anthropic (Claude 3.5 Sonnet)**. Automatically switches models based on the task (reasoning vs. coding).
-*   **Privacy-Focused**: Process sensitive data locally where possible.
+*   **Contextual OCR & Vision**: Automatically extracts text and analyzes visuals from your screen. Uses **720p optimized capture** for high performance and low latency.
+*   **Audio Intelligence & VAD**: Captures system audio/microphone with **Voice Activity Detection** to ignore silence, providing real-time transcripts via Whisper.
+*   **Automatic Meeting Notes**: Generates comprehensive structured notes, summaries, action items, and follow-up emails from your meetings using LLM analysis.
+*   **Multi-Provider AI**: Robust LLM Router supporting **OpenAI (GPT-4o)** and **Anthropic (Claude 3.5 Sonnet)** with intelligent caching and fallback strategies.
+*   **Customizable Shortcuts**: Global keyboard shortcuts for every action, fully configurable via the interface.
 
 ## 🛠️ Prerequisites
 
@@ -58,13 +58,14 @@ npm run app:build
 
 ## ⚠️ Important Usage Notes
 
-*   **Closing the App**: Use `Cmd + Q` (Mac) or `Ctrl + Q` (Windows) to quit. The standard close button may be disabled to maintain the overlay state.
-*   **Screen Permissions**: Ensure you grant Screen Recording and Accessibility permissions to the app (especially on macOS) for the OCR and global shortcuts to work.
-*   **Text Selection**: Select text before triggering shortcuts for context-aware answers.
-*   **Shortcuts**:
-    *   `Cmd/Ctrl + B`: Toggle visibility
-    *   `Cmd/Ctrl + H`: Capture Screenshot / Analyze
-    *   `Cmd/Enter`: Get Solution
+*   **Closing the App**: Use `Cmd + Q` (Mac) or `Ctrl + Q` (Windows) to quit.
+*   **Screen Permissions**: Ensure you grant Screen Recording and Accessibility permissions to the app (especially on macOS) for OCR and global shortcuts.
+*   **Default Shortcuts** (Customizable in Settings):
+    *   `Cmd/Ctrl + B`: Toggle Overlay visibility
+    *   `Cmd/Ctrl + Shift + H`: Capture Screenshot / Analyze
+    *   `Cmd/Ctrl + Shift + Enter`: Generate Solution / Answer
+    *   `Cmd/Ctrl + Shift + M`: Start/Stop Audio Capture
 
 ---
-**Disclaimer**: This tool is intended for educational and productivity purposes (e.g., as a sales copilot, customer support assistant, or interview preparation aid). Please use it responsibly.
+**Performance**: Features optimized implementation including native image resizing, audio VAD, and SQLite indexing for smooth Experience.
+**Disclaimer**: This tool is intended for educational and productivity purposes. Please use responsibly.
