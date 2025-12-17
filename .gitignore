@@ -38,3 +38,4 @@ secret.key
 # Editor
 .vscode
 .idea
+.env
