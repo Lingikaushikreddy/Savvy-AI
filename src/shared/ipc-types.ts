@@ -121,3 +121,57 @@ export interface ElectronApi {
     settings: SettingsApi
     shortcuts: ShortcutApi
 }
+
+// Meeting Notes Types
+export interface Decision {
+    topic: string
+    decision: string
+    rationale: string
+    decidedBy: string
+}
+
+export interface ActionItem {
+    task: string
+    assignee: string
+    dueDate: string
+    priority: 'high' | 'medium' | 'low'
+    status: 'pending' | 'in-progress' | 'completed'
+}
+
+export interface MeetingNotes {
+    title: string
+    date: string
+    duration: number
+    participants: string[]
+    summary: string
+    keyPoints: string[]
+    decisions: Decision[]
+    actionItems: ActionItem[]
+    nextSteps: string[]
+    questions: string[]
+}
+
+export interface Email {
+    subject: string
+    body: string
+    recipient?: string
+    attachments?: string[]
+}
+
+export interface NotesApi {
+    generate: (conversationId: string) => Promise<MeetingNotes>
+    generateEmail: (conversationId: string, recipient?: string) => Promise<Email>
+    getActionItems: (conversationId: string) => Promise<ActionItem[]>
+    summarize: (conversationId: string, maxLength?: number) => Promise<string>
+}
+
+// Update ElectronApi
+export interface ElectronApi {
+    window: WindowApi
+    capture: CaptureApi
+    ai: AiApi
+    conversation: ConversationApi
+    settings: SettingsApi
+    shortcuts: ShortcutApi
+    notes: NotesApi
+}

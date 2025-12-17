@@ -56,6 +56,13 @@ contextBridge.exposeInMainWorld('api', {
     update: (action: string, key: string) => ipcRenderer.invoke('shortcuts:update', action, key),
     reset: () => ipcRenderer.invoke('shortcuts:reset'),
   },
+
+  notes: {
+    generate: (conversationId: string) => ipcRenderer.invoke('notes:generate', conversationId),
+    generateEmail: (conversationId: string, recipient?: string) => ipcRenderer.invoke('notes:email', conversationId, recipient),
+    getActionItems: (conversationId: string) => ipcRenderer.invoke('notes:action-items', conversationId),
+    summarize: (conversationId: string, maxLength?: number) => ipcRenderer.invoke('notes:summarize', conversationId, maxLength),
+  },
 })
 
 // Keep legacy API for backward compatibility during migration

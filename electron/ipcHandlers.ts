@@ -108,6 +108,12 @@ export function initializeIpcHandlers(appState: AppState): void {
   ipcMain.handle('shortcuts:update', async (_, action: string, key: string) => appState.shortcutManager.updateShortcut(action, key))
   ipcMain.handle('shortcuts:reset', async () => appState.shortcutManager.resetToDefaults())
 
+  // --- Notes Handlers ---
+  ipcMain.handle('notes:generate', async (_, conversationId: string) => appState.notesGenerator.generateNotes(conversationId))
+  ipcMain.handle('notes:email', async (_, conversationId: string, recipient?: string) => appState.notesGenerator.generateFollowUpEmail(conversationId, recipient))
+  ipcMain.handle('notes:action-items', async (_, conversationId: string) => appState.notesGenerator.extractActionItems(conversationId))
+  ipcMain.handle('notes:summarize', async (_, conversationId: string, maxLength?: number) => appState.notesGenerator.summarizeConversation(conversationId, maxLength))
+
   // Legacy handlers for backward compatibility if needed, or we just remove them
   // Keeping 'transcribe-audio' as it's used
   ipcMain.handle('transcribe-audio', async (event, buffer: Buffer) => {

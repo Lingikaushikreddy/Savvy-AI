@@ -12,6 +12,7 @@ import { WhisperClient } from './audio/WhisperClient'
 import { DatabaseManager } from './database/DatabaseManager'
 import { ContextAnalyzer } from './ai/ContextAnalyzer'
 import { ContextBuilder } from './ai/ContextBuilder'
+import { NotesGenerator } from './ai/NotesGenerator'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -28,6 +29,7 @@ export class AppState {
   public databaseManager: DatabaseManager
   public contextBuilder: ContextBuilder
   public contextAnalyzer: ContextAnalyzer
+  public notesGenerator: NotesGenerator
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'
