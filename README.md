@@ -11,6 +11,9 @@ Savvy AI is a powerful desktop application designed to enhance your productivity
 *   **Automatic Meeting Notes**: Generates comprehensive structured notes, summaries, action items, and follow-up emails from your meetings using LLM analysis.
 *   **Multi-Provider AI**: Robust LLM Router supporting **OpenAI (GPT-4o)** and **Anthropic (Claude 3.5 Sonnet)** with intelligent caching and fallback strategies.
 *   **Customizable Shortcuts**: Global keyboard shortcuts for every action, fully configurable via the interface.
+*   **Real-time Voice Coaching**: Get live feedback on your sales calls.
+*   **CRM Integrations**: Seamlessly sync with Salesforce, HubSpot, and Pipedrive.
+
 
 ## 🛠️ Prerequisites
 
