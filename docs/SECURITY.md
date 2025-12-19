@@ -1,5 +1,9 @@
 # Security Policy
 
+## Local Data Processing
+Savvy AI prioritizes your privacy by processing voice and CRM data locally on your device. We do not transmit your raw audio or CRM credentials to external servers for processing.
+
+
 We take the security of Savvy AI seriously.
 
 ## 🔒 Data Protection
