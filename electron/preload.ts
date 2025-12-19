@@ -63,6 +63,11 @@ contextBridge.exposeInMainWorld('api', {
     getActionItems: (conversationId: string) => ipcRenderer.invoke('notes:action-items', conversationId),
     summarize: (conversationId: string, maxLength?: number) => ipcRenderer.invoke('notes:summarize', conversationId, maxLength),
   },
+
+  crm: {
+    connect: (provider: 'salesforce' | 'hubspot' | 'pipedrive') => ipcRenderer.invoke('crm:connect', provider),
+    sync: (notes: any) => ipcRenderer.invoke('crm:sync', notes),
+  },
 })
 
 // Keep legacy API for backward compatibility during migration
