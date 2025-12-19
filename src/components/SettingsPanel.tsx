@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Settings as SettingsIcon, Monitor, Mic, BrainCircuit, Key, Shield, BookOpen, Save, Keyboard } from 'lucide-react'
+import { X, Settings as SettingsIcon, Monitor, Mic, BrainCircuit, Key, Shield, BookOpen, Save, Keyboard, Link } from 'lucide-react'
 import { useAppStore, Settings } from '../store/useAppStore'
 import { Toaster, useToast } from './ui/toast'
 import { ShortcutEditor } from './settings/ShortcutEditor'
 
-type Category = 'general' | 'capture' | 'ai' | 'playbook' | 'apiKeys' | 'privacy' | 'shortcuts'
+type Category = 'general' | 'capture' | 'ai' | 'playbook' | 'apiKeys' | 'privacy' | 'shortcuts' | 'integrations'
 
 const categories: { id: Category; label: string; icon: React.ReactNode }[] = [
     { id: 'general', label: 'General', icon: <SettingsIcon className="w-4 h-4" /> },
     { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard className="w-4 h-4" /> },
     { id: 'capture', label: 'Capture', icon: <Monitor className="w-4 h-4" /> },
+    { id: 'integrations', label: 'Integrations', icon: <Link className="w-4 h-4" /> },
     { id: 'ai', label: 'AI & Models', icon: <BrainCircuit className="w-4 h-4" /> },
     { id: 'playbook', label: 'Playbooks', icon: <BookOpen className="w-4 h-4" /> },
     { id: 'apiKeys', label: 'API Keys', icon: <Key className="w-4 h-4" /> },
@@ -337,6 +338,61 @@ export const SettingsPanel: React.FC = () => {
                             {/* SHORTCUTS SETTINGS */}
                             {activeCategory === 'shortcuts' && (
                                 <ShortcutEditor />
+                            )}
+
+                            {/* INTEGRATIONS SETTINGS */}
+                            {activeCategory === 'integrations' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-gray-800 rounded-lg flex items-center justify-between border border-gray-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center text-blue-400 font-bold">SF</div>
+                                            <div>
+                                                <div className="font-medium text-white">Salesforce</div>
+                                                <div className="text-xs text-gray-400">Sync contacts, deals, and activities</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => (window as any).api.crm.connect('salesforce')}
+                                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors"
+                                        >
+                                            Connect
+                                        </button>
+                                    </div>
+                                    <div className="p-4 bg-gray-800 rounded-lg flex items-center justify-between border border-gray-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center text-orange-400 font-bold">HS</div>
+                                            <div>
+                                                <div className="font-medium text-white">HubSpot</div>
+                                                <div className="text-xs text-gray-400">Sync notes and tasks</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => (window as any).api.crm.connect('hubspot')}
+                                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-colors"
+                                        >
+                                            Connect
+                                        </button>
+                                    </div>
+                                    <div className="p-4 bg-gray-800 rounded-lg flex items-center justify-between border border-gray-700">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center text-green-400 font-bold">PD</div>
+                                            <div>
+                                                <div className="font-medium text-white">Pipedrive</div>
+                                                <div className="text-xs text-gray-400">Sync activities and deals</div>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => (window as any).api.crm.connect('pipedrive')}
+                                            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded transition-colors"
+                                        >
+                                            Connect
+                                        </button>
+                                    </div>
+
+                                    <div className="text-xs text-gray-500 pt-4 text-center">
+                                        Ensure Client IDs are set in your .env file or environment variables.
+                                    </div>
+                                </div>
                             )}
 
 
