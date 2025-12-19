@@ -1,5 +1,9 @@
 # Privacy Policy
 
+## CRM Credentials
+Your CRM credentials (API keys, tokens) are stored securely on your local machine using OS-level encryption. They are never shared with third parties.
+
+
 **Last Updated**: December 17, 2024
 
 Savvy AI is designed with privacy as the core principle. We believe your data belongs to you. This policy outlines how we handle your data.
