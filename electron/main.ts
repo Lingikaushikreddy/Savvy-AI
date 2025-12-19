@@ -1,4 +1,8 @@
 import { app, BrowserWindow } from 'electron'
+import * as dotenv from 'dotenv'
+import path from 'path'
+dotenv.config()
+
 import { initializeIpcHandlers } from './ipcHandlers'
 import { WindowHelper } from './WindowHelper'
 import { ScreenshotHelper } from './ScreenshotHelper'
@@ -15,9 +19,15 @@ import { ContextBuilder } from './ai/ContextBuilder'
 import { NotesGenerator } from './ai/NotesGenerator'
 import { PerformanceMonitor } from './monitoring/PerformanceMonitor'
 import { Logger } from './logging/Logger'
+import { CoachingManager } from './coaching/CoachingManager'
+import { CRMManager } from './integrations/CRMManager'
 
 export class AppState {
   private static instance: AppState | null = null
+
+  // ... existing properties
+  public coachingManager: CoachingManager
+  public crmManager: CRMManager
 
   private windowHelper: WindowHelper
   private screenshotHelper: ScreenshotHelper
@@ -98,6 +108,12 @@ export class AppState {
 
     // Initialize ContextBuilder
     this.contextBuilder = new ContextBuilder(this)
+
+    // Initialize CoachingManager
+    this.coachingManager = new CoachingManager(this)
+
+    // Initialize CRMManager
+    this.crmManager = new CRMManager(this)
   }
 
   public static getInstance(): AppState {
@@ -238,6 +254,16 @@ async function initializeApp() {
 
   app.whenReady().then(() => {
     console.log('App is ready')
+
+    // Register protocol for OAuth callbacks
+    if (process.defaultApp) {
+      if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient('savvy-ai', process.execPath, [path.resolve(process.argv[1])])
+      }
+    } else {
+      app.setAsDefaultProtocolClient('savvy-ai')
+    }
+
     appState.createWindow()
   })
 
