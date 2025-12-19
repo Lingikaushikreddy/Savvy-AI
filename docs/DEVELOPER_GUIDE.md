@@ -101,3 +101,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for g
 ### Debugging
 - Toggle **Debug Mode**: `Cmd/Ctrl + Shift + D`
 - View Logs: `~/Library/Logs/Savvy AI/logs/`
+
+## Integrations development
+To add a new CRM integration, implement the `CRMClient` interface and register the new provider in `CRMManager`. See `electron/integrations/README.md` for details.
+
