@@ -59,6 +59,10 @@ export class AudioCaptureManager extends EventEmitter {
         this.addToRollingBuffer(data)
         // Level meter calculation (RMS)
         this.calculateLevel(data)
+
+        // Emit for real-time consumers (Coaching)
+        this.emit('data', data)
+        this.emit('level', this.currentLevel)
       })
 
       this.micInputStream.on('error', (err: any) => {
