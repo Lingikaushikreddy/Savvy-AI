@@ -229,4 +229,12 @@ export function initializeIpcHandlers(appState: AppState): void {
     appState.logger.info('IPC', `Debug mode set to ${enabled}`)
     return true
   })
+
+  // --- Voice Coaching ---
+  ipcMain.handle('coaching:start', async () => appState.coachingManager.startCoaching())
+  ipcMain.handle('coaching:stop', async () => appState.coachingManager.stopCoaching())
+
+  // --- CRM ---
+  ipcMain.handle('crm:connect', async (_, provider: 'salesforce' | 'hubspot' | 'pipedrive') => appState.crmManager.connect(provider))
+  ipcMain.handle('crm:sync', async (_, notes) => appState.crmManager.syncMeeting('', notes))
 }
