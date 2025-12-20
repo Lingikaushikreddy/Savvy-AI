@@ -50,8 +50,8 @@ export interface LLMResponse {
 }
 
 export class LLMRouter extends EventEmitter {
-    private openai: OpenAI;
-    private anthropic: Anthropic;
+    private openai: OpenAI | null = null;
+    private anthropic: Anthropic | null = null;
     private currentProvider: Provider = 'openai';
     private currentModel: string = 'gpt-4o'; // Default to vision capable model
 
@@ -74,14 +74,27 @@ export class LLMRouter extends EventEmitter {
 
     constructor() {
         super();
-        this.openai = new OpenAI({
-            apiKey: process.env.OPENAI_API_KEY,
-            dangerouslyAllowBrowser: false,
-        });
 
-        this.anthropic = new Anthropic({
-            apiKey: process.env.ANTHROPIC_API_KEY,
-        });
+        // Only initialize OpenAI if API key is provided
+        if (process.env.OPENAI_API_KEY) {
+            this.openai = new OpenAI({
+                apiKey: process.env.OPENAI_API_KEY,
+                dangerouslyAllowBrowser: false,
+            });
+        }
+
+        // Only initialize Anthropic if API key is provided
+        if (process.env.ANTHROPIC_API_KEY) {
+            this.anthropic = new Anthropic({
+                apiKey: process.env.ANTHROPIC_API_KEY,
+            });
+        }
+
+        // Set default provider based on what's available
+        if (this.anthropic && !this.openai) {
+            this.currentProvider = 'anthropic';
+            this.currentModel = this.DEFAULTS.anthropic.model;
+        }
     }
 
     public setProvider(provider: Provider) {
@@ -119,8 +132,14 @@ export class LLMRouter extends EventEmitter {
         try {
             let response: LLMResponse
             if (this.currentProvider === 'openai') {
+                if (!this.openai) {
+                    throw new Error('OpenAI client not initialized. Please set OPENAI_API_KEY environment variable.');
+                }
                 response = await this.completeOpenAI(context, options);
             } else {
+                if (!this.anthropic) {
+                    throw new Error('Anthropic client not initialized. Please set ANTHROPIC_API_KEY environment variable.');
+                }
                 response = await this.completeAnthropic(context, options);
             }
 
@@ -147,8 +166,14 @@ export class LLMRouter extends EventEmitter {
     ): AsyncGenerator<string> {
         try {
             if (this.currentProvider === 'openai') {
+                if (!this.openai) {
+                    throw new Error('OpenAI client not initialized. Please set OPENAI_API_KEY environment variable.');
+                }
                 yield* this.streamOpenAI(context, options);
             } else {
+                if (!this.anthropic) {
+                    throw new Error('Anthropic client not initialized. Please set ANTHROPIC_API_KEY environment variable.');
+                }
                 yield* this.streamAnthropic(context, options);
             }
         } catch (error) {
@@ -171,7 +196,7 @@ export class LLMRouter extends EventEmitter {
             messages.unshift({ role: 'system', content: context.systemPrompt });
         }
 
-        const response = await this.openai.chat.completions.create({
+        const response = await this.openai!.chat.completions.create({
             model,
             messages: messages as any,
             temperature,
@@ -205,7 +230,7 @@ export class LLMRouter extends EventEmitter {
             messages.unshift({ role: 'system', content: context.systemPrompt });
         }
 
-        const stream = await this.openai.chat.completions.create({
+        const stream = await this.openai!.chat.completions.create({
             model,
             messages: messages as any,
             temperature,
@@ -266,7 +291,7 @@ export class LLMRouter extends EventEmitter {
             };
         });
 
-        const response = await this.anthropic.messages.create({
+        const response = await this.anthropic!.messages.create({
             model,
             messages,
             system,
@@ -327,7 +352,7 @@ export class LLMRouter extends EventEmitter {
             };
         });
 
-        const stream = await this.anthropic.messages.create({
+        const stream = await this.anthropic!.messages.create({
             model,
             messages,
             system,

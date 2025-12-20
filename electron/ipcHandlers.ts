@@ -2,12 +2,47 @@
 
 import { ipcMain, app } from 'electron'
 import { AppState } from './main'
+import { InputValidator } from './utils/InputValidator'
+import { AppError, ErrorType } from './errors/ErrorHandler'
+import { Logger } from './logging/Logger'
 
 export function initializeIpcHandlers(appState: AppState): void {
+  const logger = appState.logger
+  const errorHandler = (error: any, handlerName: string) => {
+    logger.error('IPC', `Error in ${handlerName}`, error)
+    if (error instanceof AppError) {
+      return { success: false, error: error.userMessage, type: error.type }
+    }
+    return { success: false, error: error.message || 'Unknown error occurred' }
+  }
+
   // --- Window Handlers ---
-  ipcMain.handle('window:show', async () => appState.showMainWindow())
-  ipcMain.handle('window:hide', async () => appState.hideMainWindow())
-  ipcMain.handle('window:toggle', async () => appState.toggleMainWindow())
+  ipcMain.handle('window:show', async () => {
+    try {
+      appState.showMainWindow()
+      return { success: true }
+    } catch (error) {
+      return errorHandler(error, 'window:show')
+    }
+  })
+  
+  ipcMain.handle('window:hide', async () => {
+    try {
+      appState.hideMainWindow()
+      return { success: true }
+    } catch (error) {
+      return errorHandler(error, 'window:hide')
+    }
+  })
+  
+  ipcMain.handle('window:toggle', async () => {
+    try {
+      appState.toggleMainWindow()
+      return { success: true }
+    } catch (error) {
+      return errorHandler(error, 'window:toggle')
+    }
+  })
   ipcMain.handle('window:move', async (_, x: number, y: number) => {
     // Implement direct move if needed, or mapping to existing move methods
     // For now, these are specific directional moves in AppState, 
@@ -16,7 +51,26 @@ export function initializeIpcHandlers(appState: AppState): void {
     // Keeping existing behavior for directional moves if requested
   })
   ipcMain.handle('window:resize', async (_, width: number, height: number) => {
-    appState.setWindowDimensions(width, height)
+    try {
+      const validWidth = InputValidator.validateNumber(width, 100, 10000)
+      const validHeight = InputValidator.validateNumber(height, 100, 10000)
+      
+      if (!validWidth || !validHeight) {
+        throw new AppError({
+          type: ErrorType.UNKNOWN_ERROR,
+          severity: 'LOW',
+          recoverable: true,
+          userMessage: 'Invalid window dimensions',
+          message: 'Invalid window dimensions provided',
+          context: { operation: 'window:resize', component: 'IPC' }
+        })
+      }
+      
+      appState.setWindowDimensions(validWidth, validHeight)
+      return { success: true }
+    } catch (error) {
+      return errorHandler(error, 'window:resize')
+    }
   })
 
   // --- Capture Handlers ---
@@ -91,16 +145,75 @@ export function initializeIpcHandlers(appState: AppState): void {
   // --- Settings Handlers ---
   ipcMain.handle('settings:get', async (_, key) => appState.databaseManager.getSetting(key))
   ipcMain.handle('settings:set', async (_, key, value) => {
-    await appState.databaseManager.setSetting(key, value)
-    // Apply critical settings immediately (like API keys)
-    if (key.includes('api_key')) {
-      // Update env or router config
+    try {
+      const sanitizedKey = InputValidator.validateString(key, 100)
+      const sanitizedValue = InputValidator.validateString(value, 10000)
+      
+      if (!sanitizedKey) {
+        throw new AppError({
+          type: ErrorType.UNKNOWN_ERROR,
+          severity: 'LOW',
+          recoverable: true,
+          userMessage: 'Invalid setting key',
+          message: 'Invalid setting key provided',
+          context: { operation: 'settings:set', component: 'IPC' }
+        })
+      }
+
+      await appState.databaseManager.setSetting(sanitizedKey, sanitizedValue || '')
+      
+      // Apply critical settings immediately (like API keys)
+      if (sanitizedKey.includes('api_key')) {
+        // Update router config if needed
+        const provider = sanitizedKey.includes('openai') ? 'openai' : 
+                        sanitizedKey.includes('anthropic') ? 'anthropic' : null
+        if (provider && sanitizedValue) {
+          // Router will pick up from env or database on next request
+          process.env[`${provider.toUpperCase()}_API_KEY`] = sanitizedValue
+        }
+      }
+      
+      return { success: true }
+    } catch (error) {
+      return errorHandler(error, 'settings:set')
     }
   })
   ipcMain.handle('settings:get-all', async () => appState.databaseManager.getAllSettings())
   ipcMain.handle('settings:validate-api-key', async (_, provider, key) => {
-    // Implement validation logic
-    return true
+    try {
+      if (!provider || !key) {
+        return { valid: false, error: 'Provider and key are required' }
+      }
+
+      const sanitizedProvider = InputValidator.validateString(provider)
+      const sanitizedKey = InputValidator.validateString(key, 500)
+      
+      if (!sanitizedProvider || !sanitizedKey) {
+        return { valid: false, error: 'Invalid input' }
+      }
+
+      if (sanitizedProvider !== 'openai' && sanitizedProvider !== 'anthropic') {
+        return { valid: false, error: 'Invalid provider' }
+      }
+
+      // Validate format first
+      if (!InputValidator.validateApiKey(sanitizedProvider as 'openai' | 'anthropic', sanitizedKey)) {
+        return { valid: false, error: 'Invalid API key format' }
+      }
+
+      // Then validate with actual API call
+      const { ApiKeyValidator } = await import('./utils/ApiKeyValidator')
+      const validator = new ApiKeyValidator(logger)
+      const result = await validator.validateApiKey(
+        sanitizedProvider as 'openai' | 'anthropic',
+        sanitizedKey
+      )
+
+      return result
+    } catch (error) {
+      logger.error('IPC', 'Error validating API key', error)
+      return { valid: false, error: error instanceof Error ? error.message : 'Validation failed' }
+    }
   })
 
   // --- Shortcut Handlers ---
@@ -127,7 +240,21 @@ export function initializeIpcHandlers(appState: AppState): void {
   })
 
   ipcMain.handle('delete-screenshot', async (event, path: string) => {
-    return appState.deleteScreenshot(path)
+    try {
+      if (!InputValidator.validateFilePath(path)) {
+        throw new AppError({
+          type: ErrorType.UNKNOWN_ERROR,
+          severity: 'MEDIUM',
+          recoverable: true,
+          userMessage: 'Invalid file path',
+          message: 'Invalid file path provided',
+          context: { operation: 'delete-screenshot', component: 'IPC' }
+        })
+      }
+      return await appState.deleteScreenshot(path)
+    } catch (error) {
+      return errorHandler(error, 'delete-screenshot')
+    }
   })
 
   ipcMain.handle('screen-capture-once', async () => {
@@ -135,8 +262,8 @@ export function initializeIpcHandlers(appState: AppState): void {
   })
 
   ipcMain.handle('get-screenshots', async () => {
-    console.log({ view: appState.getView() })
     try {
+      logger.debug('IPC', 'Getting screenshots', { view: appState.getView() })
       let previews = []
       if (appState.getView() === 'queue') {
         previews = await Promise.all(
@@ -153,11 +280,10 @@ export function initializeIpcHandlers(appState: AppState): void {
           }))
         )
       }
-      previews.forEach((preview: any) => console.log(preview.path))
+      logger.debug('IPC', 'Retrieved screenshots', { count: previews.length })
       return previews
     } catch (error) {
-      console.error('Error getting screenshots:', error)
-      throw error
+      return errorHandler(error, 'get-screenshots')
     }
   })
 
@@ -168,11 +294,10 @@ export function initializeIpcHandlers(appState: AppState): void {
   ipcMain.handle('reset-queues', async () => {
     try {
       appState.clearQueues()
-      console.log('Screenshot queues have been cleared.')
+      logger.info('IPC', 'Screenshot queues cleared')
       return { success: true }
     } catch (error: any) {
-      console.error('Error resetting queues:', error)
-      return { success: false, error: error.message }
+      return errorHandler(error, 'reset-queues')
     }
   })
 
@@ -182,30 +307,47 @@ export function initializeIpcHandlers(appState: AppState): void {
       const result = await appState.processingHelper.processAudioBase64(data, mimeType)
       return result
     } catch (error: any) {
-      console.error('Error in analyze-audio-base64 handler:', error)
-      throw error
+      return errorHandler(error, 'analyze-audio-base64')
     }
   })
 
   // IPC handler for analyzing audio from file path
   ipcMain.handle('analyze-audio-file', async (event, path: string) => {
     try {
+      if (!InputValidator.validateFilePath(path)) {
+        throw new AppError({
+          type: ErrorType.UNKNOWN_ERROR,
+          severity: 'MEDIUM',
+          recoverable: true,
+          userMessage: 'Invalid file path',
+          message: 'Invalid file path provided',
+          context: { operation: 'analyze-audio-file', component: 'IPC' }
+        })
+      }
       const result = await appState.processingHelper.processAudioFile(path)
       return result
     } catch (error: any) {
-      console.error('Error in analyze-audio-file handler:', error)
-      throw error
+      return errorHandler(error, 'analyze-audio-file')
     }
   })
 
   // IPC handler for analyzing image from file path
   ipcMain.handle('analyze-image-file', async (event, path: string) => {
     try {
+      if (!InputValidator.validateFilePath(path)) {
+        throw new AppError({
+          type: ErrorType.UNKNOWN_ERROR,
+          severity: 'MEDIUM',
+          recoverable: true,
+          userMessage: 'Invalid file path',
+          message: 'Invalid file path provided',
+          context: { operation: 'analyze-image-file', component: 'IPC' }
+        })
+      }
       const result = await appState.processingHelper.getLLMHelper().analyzeImageFile(path)
       return result
     } catch (error: any) {
-      console.error('Error in analyze-image-file handler:', error)
-      throw error
+      return errorHandler(error, 'analyze-image-file')
     }
   })
 
@@ -237,4 +379,108 @@ export function initializeIpcHandlers(appState: AppState): void {
   // --- CRM ---
   ipcMain.handle('crm:connect', async (_, provider: 'salesforce' | 'hubspot' | 'pipedrive') => appState.crmManager.connect(provider))
   ipcMain.handle('crm:sync', async (_, notes) => appState.crmManager.syncMeeting('', notes))
+
+  // --- License & Business ---
+  ipcMain.handle('license:activate', async (_, licenseKey: string, email: string) => {
+    try {
+      const result = await appState.licenseManager.activateLicense(licenseKey, email)
+      if (result.success) {
+        await appState.analyticsManager.trackConversion('trial_to_paid', appState.licenseManager.getLicenseInfo()?.tier || 'pro')
+      }
+      return result
+    } catch (error) {
+      return errorHandler(error, 'license:activate')
+    }
+  })
+
+  ipcMain.handle('license:validate', async () => {
+    try {
+      const valid = await appState.licenseManager.validateLicense()
+      return { valid, info: appState.licenseManager.getLicenseInfo() }
+    } catch (error) {
+      return errorHandler(error, 'license:validate')
+    }
+  })
+
+  ipcMain.handle('license:get-info', async () => {
+    try {
+      return appState.licenseManager.getLicenseInfo()
+    } catch (error) {
+      return errorHandler(error, 'license:get-info')
+    }
+  })
+
+  ipcMain.handle('license:get-limits', async () => {
+    try {
+      return appState.licenseManager.getFeatureLimits()
+    } catch (error) {
+      return errorHandler(error, 'license:get-limits')
+    }
+  })
+
+  ipcMain.handle('license:has-feature', async (_, feature: string) => {
+    try {
+      return appState.licenseManager.hasFeature(feature as any)
+    } catch (error) {
+      return errorHandler(error, 'license:has-feature')
+    }
+  })
+
+  ipcMain.handle('usage:get-stats', async () => {
+    try {
+      return await appState.usageTracker.getUsageStats()
+    } catch (error) {
+      return errorHandler(error, 'usage:get-stats')
+    }
+  })
+
+  ipcMain.handle('usage:track-conversation', async () => {
+    try {
+      const result = await appState.usageTracker.trackConversation()
+      await appState.analyticsManager.trackFeatureUsage('conversation')
+      return result
+    } catch (error) {
+      return errorHandler(error, 'usage:track-conversation')
+    }
+  })
+
+  ipcMain.handle('usage:track-screenshot', async () => {
+    try {
+      const result = await appState.usageTracker.trackScreenshot()
+      await appState.analyticsManager.trackFeatureUsage('screenshot')
+      return result
+    } catch (error) {
+      return errorHandler(error, 'usage:track-screenshot')
+    }
+  })
+
+  ipcMain.handle('usage:track-audio', async (_, minutes: number) => {
+    try {
+      const result = await appState.usageTracker.trackAudioMinutes(minutes)
+      await appState.analyticsManager.trackFeatureUsage('audio', minutes * 60 * 1000)
+      return result
+    } catch (error) {
+      return errorHandler(error, 'usage:track-audio')
+    }
+  })
+
+  ipcMain.handle('usage:track-ai-query', async () => {
+    try {
+      const result = await appState.usageTracker.trackAIQuery()
+      await appState.analyticsManager.trackFeatureUsage('ai_query')
+      return result
+    } catch (error) {
+      return errorHandler(error, 'usage:track-ai-query')
+    }
+  })
+
+  // --- Analytics ---
+  ipcMain.handle('analytics:track', async (_, event: string, properties?: Record<string, any>) => {
+    try {
+      await appState.analyticsManager.track(event, properties)
+      return { success: true }
+    } catch (error) {
+      return errorHandler(error, 'analytics:track')
+    }
+  })
 }
