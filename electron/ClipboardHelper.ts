@@ -9,9 +9,13 @@ export class ClipboardHelper {
 
   constructor(appState: AppState) {
     this.appState = appState
+    // Don't start monitoring here - will be started after app is ready
   }
 
   public startMonitoring(intervalMs: number = 1000) {
+    // Only start if not already monitoring
+    if (this.intervalId) return
+
     this.intervalId = setInterval(() => {
       this.checkClipboard()
     }, intervalMs)
