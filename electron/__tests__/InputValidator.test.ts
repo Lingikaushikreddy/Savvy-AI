@@ -3,7 +3,7 @@ import { InputValidator } from '../utils/InputValidator'
 describe('InputValidator', () => {
   describe('validateApiKey', () => {
     it('should validate OpenAI API key format', () => {
-      expect(InputValidator.validateApiKey('openai', 'sk-1234567890abcdef')).toBe(true)
+      expect(InputValidator.validateApiKey('openai', 'sk-1234567890abcdef1234567890')).toBe(true)
       expect(InputValidator.validateApiKey('openai', 'sk-')).toBe(false)
       expect(InputValidator.validateApiKey('openai', 'invalid')).toBe(false)
     })
