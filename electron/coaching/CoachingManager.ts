@@ -4,6 +4,7 @@ import { VoiceCoach, CoachingTip } from './VoiceCoach'
 import { AudioCaptureManager } from '../audio/AudioCaptureManager'
 import { WhisperClient } from '../audio/WhisperClient'
 import { BrowserWindow } from 'electron'
+import { AppError, ErrorType } from '../errors/ErrorHandler'
 
 export interface CoachingState {
     isActive: boolean
@@ -28,6 +29,18 @@ export class CoachingManager {
 
     public startCoaching() {
         if (this.isRunning) return
+
+        if (!this.appState.licenseManager.hasFeature('voiceCoaching')) {
+            throw new AppError({
+                type: ErrorType.PERMISSION_DENIED,
+                severity: 'MEDIUM',
+                recoverable: true,
+                userMessage: 'Voice Coaching is a Pro feature. Please upgrade your license.',
+                message: 'License check failed for Voice Coaching',
+                context: { operation: 'coaching:start', component: 'CoachingManager' }
+            })
+        }
+
         this.isRunning = true
         this.voiceCoach.reset()
         this.lastTranscriptionTime = Date.now()
