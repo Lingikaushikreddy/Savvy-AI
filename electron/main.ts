@@ -21,6 +21,11 @@ import { PerformanceMonitor } from './monitoring/PerformanceMonitor'
 import { Logger } from './logging/Logger'
 import { CoachingManager } from './coaching/CoachingManager'
 import { CRMManager } from './integrations/CRMManager'
+import { ConfigValidator } from './utils/ConfigValidator'
+import { AutoUpdater } from './utils/AutoUpdater'
+import { LicenseManager } from './business/LicenseManager'
+import { AnalyticsManager } from './business/AnalyticsManager'
+import { UsageTracker } from './business/UsageTracker'
 
 export class AppState {
   private static instance: AppState | null = null
@@ -44,6 +49,9 @@ export class AppState {
   public notesGenerator: NotesGenerator
   public performanceMonitor: PerformanceMonitor
   public logger: Logger
+  public licenseManager: LicenseManager
+  public analyticsManager: AnalyticsManager
+  public usageTracker: UsageTracker
 
   // View management
   private view: 'queue' | 'solutions' = 'queue'
@@ -86,7 +94,7 @@ export class AppState {
 
     // Initialize ClipboardHelper
     this.clipboardHelper = new ClipboardHelper(this)
-    this.clipboardHelper.startMonitoring()
+    // Don't start monitoring yet - will be started after app is ready
 
     // Initialize ScreenCaptureManager
     this.screenCaptureManager = new ScreenCaptureManager()
@@ -114,6 +122,11 @@ export class AppState {
 
     // Initialize CRMManager
     this.crmManager = new CRMManager(this)
+
+    // Initialize Business Systems
+    this.licenseManager = new LicenseManager(this.logger, this.databaseManager)
+    this.analyticsManager = new AnalyticsManager(this.logger, this.databaseManager, this.licenseManager)
+    this.usageTracker = new UsageTracker(this.logger, this.databaseManager, this.licenseManager)
   }
 
   public static getInstance(): AppState {
@@ -175,12 +188,7 @@ export class AppState {
   }
 
   public toggleMainWindow(): void {
-    console.log(
-      'Screenshots: ',
-      this.screenshotHelper.getScreenshotQueue().length,
-      'Extra screenshots: ',
-      this.screenshotHelper.getExtraScreenshotQueue().length
-    )
+    // Logging moved to WindowHelper if needed
     this.windowHelper.toggleMainWindow()
   }
 
@@ -245,15 +253,54 @@ export class AppState {
 // Application initialization
 async function initializeApp() {
   const appState = AppState.getInstance()
+  const logger = appState.logger
+
+  // Validate configuration on startup
+  const configValidator = new ConfigValidator(logger)
+  const configResult = await configValidator.validateConfig()
+  
+  if (!configResult.valid) {
+    logger.error('Main', 'Configuration validation failed', { errors: configResult.errors })
+    // Show error dialog to user
+    app.whenReady().then(() => {
+      const { dialog } = require('electron')
+      dialog.showErrorBox(
+        'Configuration Error',
+        `The application failed to start due to configuration errors:\n\n${configResult.errors.join('\n')}\n\nPlease check your configuration and try again.`
+      )
+      app.quit()
+    })
+    return
+  }
+
+  if (configResult.warnings.length > 0) {
+    logger.warn('Main', 'Configuration warnings', { warnings: configResult.warnings })
+  }
 
   // Initialize IPC handlers before window creation
   initializeIpcHandlers(appState)
+
+  // Initialize Business Systems
+  await appState.licenseManager.initialize()
+  await appState.analyticsManager.track('app_started', {
+    version: require('../package.json').version
+  })
 
   // Initialize Shortcuts
   await appState.shortcutManager.initialize()
 
   app.whenReady().then(() => {
-    console.log('App is ready')
+    logger.info('Main', 'App is ready')
+
+    // Initialize auto-updater (only in production)
+    if (!process.env.NODE_ENV || process.env.NODE_ENV === 'production') {
+      try {
+        const autoUpdater = new AutoUpdater(logger)
+        autoUpdater.startPeriodicCheck()
+      } catch (error) {
+        logger.warn('Main', 'Auto-updater initialization failed', error)
+      }
+    }
 
     // Register protocol for OAuth callbacks
     if (process.defaultApp) {
@@ -268,7 +315,7 @@ async function initializeApp() {
   })
 
   app.on('activate', () => {
-    console.log('App activated')
+    logger.info('Main', 'App activated')
     if (appState.getMainWindow() === null) {
       appState.createWindow()
     }
@@ -286,5 +333,9 @@ async function initializeApp() {
 }
 
 // Start the application
-initializeApp().catch(console.error)
+initializeApp().catch((error) => {
+  // Logger might not be initialized yet, so use console as fallback
+  console.error('Failed to initialize app:', error)
+  process.exit(1)
+})
 
