@@ -11,13 +11,20 @@ export class ScreenshotHelper {
   private extraScreenshotQueue: string[] = []
   private readonly MAX_SCREENSHOTS = 5
 
-  private readonly screenshotDir: string
-  private readonly extraScreenshotDir: string
+  private screenshotDir: string | null = null
+  private extraScreenshotDir: string | null = null
 
   private view: 'queue' | 'solutions' = 'queue'
 
   constructor(view: 'queue' | 'solutions' = 'queue') {
     this.view = view
+    // Don't initialize directories here - wait until they're needed
+  }
+
+  private ensureDirectories(): void {
+    if (this.screenshotDir && this.extraScreenshotDir) {
+      return // Already initialized
+    }
 
     // Initialize directories
     this.screenshotDir = path.join(app.getPath('userData'), 'screenshots')
@@ -25,10 +32,10 @@ export class ScreenshotHelper {
 
     // Create directories if they don't exist
     if (!fs.existsSync(this.screenshotDir)) {
-      fs.mkdirSync(this.screenshotDir)
+      fs.mkdirSync(this.screenshotDir, { recursive: true })
     }
     if (!fs.existsSync(this.extraScreenshotDir)) {
-      fs.mkdirSync(this.extraScreenshotDir)
+      fs.mkdirSync(this.extraScreenshotDir, { recursive: true })
     }
   }
 
@@ -49,6 +56,7 @@ export class ScreenshotHelper {
   }
 
   public clearQueues(): void {
+    this.ensureDirectories()
     // Clear screenshotQueue
     this.screenshotQueue.forEach((screenshotPath) => {
       fs.unlink(screenshotPath, (err) => {
@@ -70,6 +78,7 @@ export class ScreenshotHelper {
     hideMainWindow: () => void,
     showMainWindow: () => void
   ): Promise<string> {
+    this.ensureDirectories()
     hideMainWindow()
     let screenshotPath = ''
 
