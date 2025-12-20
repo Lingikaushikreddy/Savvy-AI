@@ -1,49 +1,50 @@
 
 import React from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Loader2, X } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 
 export const ProcessingSpinner: React.FC = () => {
-    const { status, setStatus } = useAppStore()
-
-    if (status !== 'processing') return null
-
-    const handleCancel = () => {
-        setStatus('idle')
-        // In real app, trigger abort controller
-    }
+    const { cancelProcessing } = useAppStore()
 
     return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 rounded-lg backdrop-blur-md shadow-xl"
-            >
+        <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="flex items-center justify-between gap-4 px-4 py-3 bg-gradient-to-r from-purple-900/50 to-blue-900/50 border border-purple-500/40 rounded-xl backdrop-blur-md shadow-2xl relative overflow-hidden group"
+        >
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10 animate-pulse" />
+
+            <div className="flex items-center gap-3 relative z-10">
                 <div className="relative">
+                    <div className="absolute inset-0 bg-purple-500 blur-md opacity-40 animate-pulse" />
                     <motion.div
                         animate={{ rotate: 360 }}
-                        transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                        transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
                     >
-                        <Loader2 className="w-5 h-5 text-blue-400" />
+                        <Loader2 className="w-5 h-5 text-purple-400" />
                     </motion.div>
                 </div>
 
                 <div className="flex flex-col">
-                    <span className="text-sm font-medium text-blue-100">Thinking...</span>
-                    <span className="text-[10px] text-blue-300/70">Est. 2s</span>
+                    <span className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-200 to-blue-200">
+                        Thinking...
+                    </span>
+                    <span className="text-[10px] text-purple-300/70 font-medium tracking-wide">
+                        Processing Context
+                    </span>
                 </div>
+            </div>
 
-                <button
-                    onClick={handleCancel}
-                    className="ml-2 p-1 hover:bg-white/10 rounded-full transition-colors"
-                    aria-label="Cancel processing"
-                >
-                    <X className="w-3.5 h-3.5 text-gray-400 hover:text-white" />
-                </button>
-            </motion.div>
-        </AnimatePresence>
+            <motion.button
+                onClick={cancelProcessing}
+                className="p-1.5 mt-0.5 rounded-lg hover:bg-white/10 text-purple-300 hover:text-white transition-colors relative z-10"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+            >
+                <X className="w-4 h-4" />
+            </motion.button>
+        </motion.div>
     )
 }
