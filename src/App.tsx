@@ -4,6 +4,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { Toaster } from './components/ui/toast'
 import { useAppStore } from './store/useAppStore'
 import { useAppListeners } from './hooks/useAppListeners'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 declare global {
   interface Window {
@@ -84,16 +85,18 @@ const App: React.FC = () => {
   }, [toggleVisibility, toggleExpanded, clearData, triggerAI])
 
   return (
-    <div className="w-screen h-screen bg-transparent font-inter selection:bg-blue-500/30">
-      {/* The main overlay panel */}
-      <OverlayPanel />
+    <ErrorBoundary>
+      <div className="w-screen h-screen bg-transparent gradient-mesh font-inter selection:bg-purple-500/30">
+        {/* The main overlay panel */}
+        <OverlayPanel />
 
-      {/* Settings Modal */}
-      <SettingsPanel />
+        {/* Settings Modal */}
+        <SettingsPanel />
 
-      {/* Toasts and other global fixed elements */}
-      <Toaster />
-    </div>
+        {/* Toasts and other global fixed elements */}
+        <Toaster />
+      </div>
+    </ErrorBoundary>
   )
 }
 
