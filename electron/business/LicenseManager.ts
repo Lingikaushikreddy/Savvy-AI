@@ -42,8 +42,8 @@ const TIER_LIMITS: Record<SubscriptionTier, FeatureLimits> = {
   free: {
     maxConversationsPerMonth: 10,
     maxScreenshotsPerDay: 50,
-    maxAudioMinutesPerMonth: 60,
-    maxAIQueriesPerMonth: 100,
+    maxAudioMinutesPerMonth: 30,
+    maxAIQueriesPerMonth: 50,
     advancedPlaybooks: false,
     crmIntegrations: false,
     voiceCoaching: false,
@@ -231,11 +231,11 @@ export class LicenseManager {
     const licenseInfo: LicenseInfo = {
       licenseKey: `TRIAL-${crypto.randomBytes(8).toString('hex')}`,
       email: '',
-      tier: 'free',
+      tier: 'pro',
       status: 'trial',
       expiresAt: null,
       trialEndsAt,
-      features: []
+      features: ['voiceCoaching', 'crmIntegrations', 'advancedPlaybooks']
     }
 
     await this.saveLicense(licenseInfo)
