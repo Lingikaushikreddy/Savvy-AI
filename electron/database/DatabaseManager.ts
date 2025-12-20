@@ -5,6 +5,7 @@ import path from 'path'
 import { app } from 'electron'
 import fs from 'fs'
 import crypto from 'crypto'
+import { KeychainManager } from '../utils/KeychainManager'
 
 // Interfaces
 export interface Conversation {
@@ -63,35 +64,44 @@ const SALT_LENGTH = 64
 const TAG_LENGTH = 16
 
 class EncryptionManager {
-    private key: Buffer
+    private key: Buffer | null = null
+    private keychainManager: KeychainManager
 
     constructor() {
-        // In a real app, retrieve this from OS Keychain. 
-        // Here we generate/read a key file in userData for persistence.
-        const keyPath = path.join(app.getPath('userData'), 'secret.key')
-        if (fs.existsSync(keyPath)) {
-            this.key = fs.readFileSync(keyPath)
-        } else {
-            this.key = crypto.randomBytes(32)
-            fs.writeFileSync(keyPath, this.key)
-        }
+        this.keychainManager = KeychainManager.getInstance()
     }
 
-    encrypt(text: string): string {
+    private async ensureKey(): Promise<void> {
+        if (this.key) return
+
+        // Try to get key from OS keychain first
+        let key = await this.keychainManager.getEncryptionKey()
+        
+        if (!key) {
+            // Generate new key and store it
+            key = await this.keychainManager.generateAndStoreKey()
+        }
+
+        this.key = key
+    }
+
+    async encrypt(text: string): Promise<string> {
+        await this.ensureKey()
         const iv = crypto.randomBytes(IV_LENGTH)
-        const cipher = crypto.createCipheriv(ALGORITHM, this.key, iv)
+        const cipher = crypto.createCipheriv(ALGORITHM, this.key!, iv)
         const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()])
         const tag = cipher.getAuthTag()
         return Buffer.concat([iv, tag, encrypted]).toString('hex')
     }
 
-    decrypt(text: string): string | null {
+    async decrypt(text: string): Promise<string | null> {
+        await this.ensureKey()
         try {
             const data = Buffer.from(text, 'hex')
             const iv = data.subarray(0, IV_LENGTH)
             const tag = data.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH)
             const encrypted = data.subarray(IV_LENGTH + TAG_LENGTH)
-            const decipher = crypto.createDecipheriv(ALGORITHM, this.key, iv)
+            const decipher = crypto.createDecipheriv(ALGORITHM, this.key!, iv)
             decipher.setAuthTag(tag)
             return decipher.update(encrypted) + decipher.final('utf8')
         } catch (e) {
@@ -102,22 +112,28 @@ class EncryptionManager {
 }
 
 export class DatabaseManager {
-    private db: Database.Database
+    private db: Database.Database | null = null
     private encryption: EncryptionManager
 
     constructor() {
+        this.encryption = new EncryptionManager()
+        // Don't initialize database here - wait until it's needed
+    }
+
+    private ensureDatabase(): void {
+        if (this.db) return
+
         const dbPath = path.join(app.getPath('userData'), 'savvy_data.sqlite')
         this.db = new Database(dbPath)
-        this.encryption = new EncryptionManager()
         this.initialize()
     }
 
     private initialize() {
         // Enable WAL mode for better concurrency
-        this.db.pragma('journal_mode = WAL')
+        this.db!.pragma('journal_mode = WAL')
 
         // Migrations / Schema Creation
-        this.db.exec(`
+        this.db!.exec(`
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
         title TEXT,
@@ -167,8 +183,9 @@ export class DatabaseManager {
     }
 
     public optimize() {
+        this.ensureDatabase()
         try {
-            this.db.exec('PRAGMA optimize;')
+            this.db!.exec('PRAGMA optimize;')
             // VACUUM is heavy, usually do it on shutdown or less frequent.
             // Using auto_vacuum or just PRAGMA optimize for now.
         } catch (e) {
@@ -179,6 +196,7 @@ export class DatabaseManager {
     // --- Conversations ---
 
     async createConversation(data: Partial<Conversation>): Promise<Conversation> {
+        this.ensureDatabase()
         const id = data.id || uuidv4()
         const now = Date.now()
         const conv: Conversation = {
@@ -192,7 +210,7 @@ export class DatabaseManager {
             created_at: now
         }
 
-        const stmt = this.db.prepare(`
+        const stmt = this.db!.prepare(`
       INSERT INTO conversations (id, title, meeting_type, start_time, end_time, participants, notes, created_at)
       VALUES (@id, @title, @meeting_type, @start_time, @end_time, @participants, @notes, @created_at)
     `)
@@ -206,7 +224,8 @@ export class DatabaseManager {
     }
 
     async getConversation(id: string): Promise<Conversation | null> {
-        const stmt = this.db.prepare('SELECT * FROM conversations WHERE id = ?')
+        this.ensureDatabase()
+        const stmt = this.db!.prepare('SELECT * FROM conversations WHERE id = ?')
         const row = stmt.get(id) as any
         if (!row) return null
 
@@ -353,24 +372,26 @@ export class DatabaseManager {
     // --- Settings ---
 
     async getSetting(key: string): Promise<string | null> {
-        const stmt = this.db.prepare('SELECT value FROM settings WHERE key = ?')
+        this.ensureDatabase()
+        const stmt = this.db!.prepare('SELECT value FROM settings WHERE key = ?')
         const row = stmt.get(key) as any
         if (!row) return null
 
         // Decrypt if it's a sensitive key
         if (this.isSensitiveKey(key)) {
-            return this.encryption.decrypt(row.value)
+            return await this.encryption.decrypt(row.value)
         }
         return row.value
     }
 
     async setSetting(key: string, value: string): Promise<void> {
+        this.ensureDatabase()
         let val = value
         if (this.isSensitiveKey(key)) {
-            val = this.encryption.encrypt(value)
+            val = await this.encryption.encrypt(value)
         }
 
-        const stmt = this.db.prepare(`
+        const stmt = this.db!.prepare(`
       INSERT INTO settings (key, value, updated_at) 
       VALUES (?, ?, ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
@@ -379,12 +400,13 @@ export class DatabaseManager {
     }
 
     async getAllSettings(): Promise<Record<string, string>> {
-        const stmt = this.db.prepare('SELECT key, value FROM settings')
+        this.ensureDatabase()
+        const stmt = this.db!.prepare('SELECT key, value FROM settings')
         const rows = stmt.all() as any[]
         const result: Record<string, string> = {}
         for (const row of rows) {
             if (this.isSensitiveKey(row.key)) {
-                const decrypted = this.encryption.decrypt(row.value)
+                const decrypted = await this.encryption.decrypt(row.value)
                 if (decrypted) result[row.key] = decrypted
             } else {
                 result[row.key] = row.value
