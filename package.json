@@ -113,7 +113,6 @@
     "@radix-ui/react-toast": "^1.2.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/fluent-ffmpeg": "^2.1.28",
-    "@types/keytar": "^7.9.0",
     "active-win": "^8.2.1",
     "axios": "^1.13.2",
     "better-sqlite3": "^12.5.0",
