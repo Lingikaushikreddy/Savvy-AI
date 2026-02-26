@@ -96,30 +96,47 @@ export function initializeIpcHandlers(appState: AppState): void {
 
   // --- AI Handlers ---
   ipcMain.handle('ai:query', async (_, question: string) => {
-    const context = await appState.contextBuilder.buildContext()
-    const model = await appState.databaseManager.getSetting('ai.model')
-    // We need to access LLMHandler/Router. 
-    // AppState doesn't expose it directly yet, but ProcessingHelper does.
-    // Or we should add it to AppState.
-    // For now using ProcessingHelper's LLM access via LLMRouter which is in LLMHelper
-    // Actually we should expose LLMRouter on AppState or create a new instance?
-    // Let's use the one in ProcessingHelper
-    return appState.processingHelper.llmHelper.llmRouter.complete(context, {
-      model: model || undefined
-    }) // Need to update LLMHelper to public expose router or wrapper
+    try {
+      const sanitizedQuestion = InputValidator.validateString(question, 50000)
+      if (!sanitizedQuestion) {
+        return { success: false, error: 'Invalid question input' }
+      }
+      const context = await appState.contextBuilder.buildContext()
+      const model = await appState.databaseManager.getSetting('ai.model')
+      return appState.processingHelper.llmHelper.llmRouter.complete(context, {
+        model: model || undefined
+      })
+    } catch (error) {
+      return errorHandler(error, 'ai:query')
+    }
   })
 
   ipcMain.on('ai:stream', async (event, question: string) => {
-    const context = await appState.contextBuilder.buildContext()
-    const model = await appState.databaseManager.getSetting('ai.model')
-    const stream = appState.processingHelper.llmHelper.llmRouter.stream(context, {
-      model: model || undefined
-    })
+    try {
+      const sanitizedQuestion = InputValidator.validateString(question, 50000)
+      if (!sanitizedQuestion) {
+        event.reply('ai:stream-end')
+        return
+      }
+      const context = await appState.contextBuilder.buildContext()
+      const model = await appState.databaseManager.getSetting('ai.model')
+      const stream = appState.processingHelper.llmHelper.llmRouter.stream(context, {
+        model: model || undefined
+      })
 
-    for await (const chunk of stream) {
-      event.reply('ai:stream-chunk', chunk)
+      for await (const chunk of stream) {
+        if (event.sender.isDestroyed()) break
+        event.reply('ai:stream-chunk', chunk)
+      }
+      if (!event.sender.isDestroyed()) {
+        event.reply('ai:stream-end')
+      }
+    } catch (error) {
+      logger.error('IPC', 'Error in ai:stream', error)
+      if (!event.sender.isDestroyed()) {
+        event.reply('ai:stream-end')
+      }
     }
-    event.reply('ai:stream-end')
   })
 
   ipcMain.handle('ai:stop', async () => {
@@ -132,18 +149,47 @@ export function initializeIpcHandlers(appState: AppState): void {
   })
 
   ipcMain.handle('context:analyze', async (_, transcript: string, screenText: string) => {
-    return appState.contextAnalyzer.analyzeContext(transcript, screenText || '')
+    try {
+      const sanitizedTranscript = InputValidator.validateString(transcript, 100000) || ''
+      const sanitizedScreenText = InputValidator.validateString(screenText, 100000) || ''
+      return appState.contextAnalyzer.analyzeContext(sanitizedTranscript, sanitizedScreenText)
+    } catch (error) {
+      return errorHandler(error, 'context:analyze')
+    }
   })
 
   // --- Conversation Handlers ---
-  ipcMain.handle('conversation:create', async (_, data) => appState.databaseManager.createConversation(data))
-  ipcMain.handle('conversation:get', async (_, id) => appState.databaseManager.getConversation(id))
-  ipcMain.handle('conversation:list', async (_, filters) => appState.databaseManager.listConversations(filters))
-  ipcMain.handle('conversation:delete', async (_, id) => appState.databaseManager.deleteConversation(id))
-  ipcMain.handle('conversation:export', async (_, id) => appState.databaseManager.exportData(id ? [id] : undefined))
+  ipcMain.handle('conversation:create', async (_, data) => {
+    try {
+      const sanitized = InputValidator.sanitizeObject(data)
+      return appState.databaseManager.createConversation(sanitized)
+    } catch (error) {
+      return errorHandler(error, 'conversation:create')
+    }
+  })
+  ipcMain.handle('conversation:get', async (_, id) => {
+    if (!InputValidator.validateConversationId(id)) return null
+    return appState.databaseManager.getConversation(id)
+  })
+  ipcMain.handle('conversation:list', async (_, filters) => {
+    const sanitized = InputValidator.sanitizeObject(filters)
+    return appState.databaseManager.listConversations(sanitized)
+  })
+  ipcMain.handle('conversation:delete', async (_, id) => {
+    if (!InputValidator.validateConversationId(id)) return { success: false, error: 'Invalid ID' }
+    return appState.databaseManager.deleteConversation(id)
+  })
+  ipcMain.handle('conversation:export', async (_, id) => {
+    if (id && !InputValidator.validateConversationId(id)) return { success: false, error: 'Invalid ID' }
+    return appState.databaseManager.exportData(id ? [id] : undefined)
+  })
 
   // --- Settings Handlers ---
-  ipcMain.handle('settings:get', async (_, key) => appState.databaseManager.getSetting(key))
+  ipcMain.handle('settings:get', async (_, key) => {
+    const sanitizedKey = InputValidator.validateString(key, 100)
+    if (!sanitizedKey) return null
+    return appState.databaseManager.getSetting(sanitizedKey)
+  })
   ipcMain.handle('settings:set', async (_, key, value) => {
     try {
       const sanitizedKey = InputValidator.validateString(key, 100)
@@ -201,7 +247,7 @@ export function initializeIpcHandlers(appState: AppState): void {
       }
 
       // Validate format first
-      if (!InputValidator.validateApiKey(sanitizedProvider as 'openai' | 'anthropic', sanitizedKey)) {
+      if (!InputValidator.validateApiKey(sanitizedProvider as 'openai' | 'anthropic' | 'gemini' | 'mistral', sanitizedKey)) {
         return { valid: false, error: 'Invalid API key format' }
       }
 
@@ -209,7 +255,7 @@ export function initializeIpcHandlers(appState: AppState): void {
       const { ApiKeyValidator } = await import('./utils/ApiKeyValidator')
       const validator = new ApiKeyValidator(logger)
       const result = await validator.validateApiKey(
-        sanitizedProvider as 'openai' | 'anthropic',
+        sanitizedProvider as 'openai' | 'anthropic' | 'gemini' | 'mistral',
         sanitizedKey
       )
 
@@ -222,14 +268,35 @@ export function initializeIpcHandlers(appState: AppState): void {
 
   // --- Shortcut Handlers ---
   ipcMain.handle('shortcuts:get-all', async () => appState.shortcutManager.getAllShortcuts())
-  ipcMain.handle('shortcuts:update', async (_, action: string, key: string) => appState.shortcutManager.updateShortcut(action, key))
+  ipcMain.handle('shortcuts:update', async (_, action: string, key: string) => {
+    const sanitizedAction = InputValidator.validateString(action, 100)
+    const sanitizedKey = InputValidator.validateString(key, 100)
+    if (!sanitizedAction || !sanitizedKey) {
+      return { success: false, error: 'Invalid shortcut parameters' }
+    }
+    return appState.shortcutManager.updateShortcut(sanitizedAction, sanitizedKey)
+  })
   ipcMain.handle('shortcuts:reset', async () => appState.shortcutManager.resetToDefaults())
 
   // --- Notes Handlers ---
-  ipcMain.handle('notes:generate', async (_, conversationId: string) => appState.notesGenerator.generateNotes(conversationId))
-  ipcMain.handle('notes:email', async (_, conversationId: string, recipient?: string) => appState.notesGenerator.generateFollowUpEmail(conversationId, recipient))
-  ipcMain.handle('notes:action-items', async (_, conversationId: string) => appState.notesGenerator.extractActionItems(conversationId))
-  ipcMain.handle('notes:summarize', async (_, conversationId: string, maxLength?: number) => appState.notesGenerator.summarizeConversation(conversationId, maxLength))
+  ipcMain.handle('notes:generate', async (_, conversationId: string) => {
+    if (!InputValidator.validateConversationId(conversationId)) return { success: false, error: 'Invalid conversation ID' }
+    return appState.notesGenerator.generateNotes(conversationId)
+  })
+  ipcMain.handle('notes:email', async (_, conversationId: string, recipient?: string) => {
+    if (!InputValidator.validateConversationId(conversationId)) return { success: false, error: 'Invalid conversation ID' }
+    const sanitizedRecipient = recipient ? InputValidator.validateString(recipient, 320) : undefined
+    return appState.notesGenerator.generateFollowUpEmail(conversationId, sanitizedRecipient || undefined)
+  })
+  ipcMain.handle('notes:action-items', async (_, conversationId: string) => {
+    if (!InputValidator.validateConversationId(conversationId)) return { success: false, error: 'Invalid conversation ID' }
+    return appState.notesGenerator.extractActionItems(conversationId)
+  })
+  ipcMain.handle('notes:summarize', async (_, conversationId: string, maxLength?: number) => {
+    if (!InputValidator.validateConversationId(conversationId)) return { success: false, error: 'Invalid conversation ID' }
+    const validLength = maxLength ? InputValidator.validateNumber(maxLength, 50, 10000) : undefined
+    return appState.notesGenerator.summarizeConversation(conversationId, validLength || undefined)
+  })
 
   // Legacy handlers for backward compatibility if needed, or we just remove them
   // Keeping 'transcribe-audio' as it's used
@@ -308,7 +375,17 @@ export function initializeIpcHandlers(appState: AppState): void {
   // IPC handler for analyzing audio from base64 data
   ipcMain.handle('analyze-audio-base64', async (event, data: string, mimeType: string) => {
     try {
-      const result = await appState.processingHelper.processAudioBase64(data, mimeType)
+      const sanitizedData = InputValidator.validateString(data, 50000000) // ~50MB base64 limit
+      const sanitizedMime = InputValidator.validateString(mimeType, 100)
+      if (!sanitizedData || !sanitizedMime) {
+        return { success: false, error: 'Invalid audio data or MIME type' }
+      }
+      // Validate MIME type is an audio type
+      const allowedMimes = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/flac']
+      if (!allowedMimes.includes(sanitizedMime)) {
+        return { success: false, error: 'Invalid audio MIME type' }
+      }
+      const result = await appState.processingHelper.processAudioBase64(sanitizedData, sanitizedMime)
       return result
     } catch (error: any) {
       return errorHandler(error, 'analyze-audio-base64')
@@ -363,16 +440,19 @@ export function initializeIpcHandlers(appState: AppState): void {
   ipcMain.handle(
     'set-ignore-mouse-events',
     (event, ignore: boolean, options?: { forward: boolean }) => {
+      const validIgnore = InputValidator.validateBoolean(ignore)
+      const validOptions = options ? { forward: InputValidator.validateBoolean(options.forward) } : undefined
       const win = appState.getMainWindow()
       if (win) {
-        win.setIgnoreMouseEvents(ignore, options)
+        win.setIgnoreMouseEvents(validIgnore, validOptions)
       }
     }
   )
 
   ipcMain.handle('debug:toggle', async (_, enabled: boolean) => {
-    appState.logger.setDebugMode(enabled)
-    appState.logger.info('IPC', `Debug mode set to ${enabled}`)
+    const validEnabled = InputValidator.validateBoolean(enabled)
+    appState.logger.setDebugMode(validEnabled)
+    appState.logger.info('IPC', `Debug mode set to ${validEnabled}`)
     return true
   })
 
@@ -381,13 +461,32 @@ export function initializeIpcHandlers(appState: AppState): void {
   ipcMain.handle('coaching:stop', async () => appState.coachingManager.stopCoaching())
 
   // --- CRM ---
-  ipcMain.handle('crm:connect', async (_, provider: 'salesforce' | 'hubspot' | 'pipedrive') => appState.crmManager.connect(provider))
-  ipcMain.handle('crm:sync', async (_, notes) => appState.crmManager.syncMeeting('', notes))
+  ipcMain.handle('crm:connect', async (_, provider: string) => {
+    const validProviders = ['salesforce', 'hubspot', 'pipedrive']
+    const sanitizedProvider = InputValidator.validateString(provider, 50)
+    if (!sanitizedProvider || !validProviders.includes(sanitizedProvider)) {
+      return { success: false, error: 'Invalid CRM provider' }
+    }
+    return appState.crmManager.connect(sanitizedProvider as 'salesforce' | 'hubspot' | 'pipedrive')
+  })
+  ipcMain.handle('crm:sync', async (_, notes) => {
+    const sanitized = InputValidator.sanitizeObject(notes)
+    return appState.crmManager.syncMeeting('', sanitized)
+  })
 
   // --- License & Business ---
   ipcMain.handle('license:activate', async (_, licenseKey: string, email: string) => {
     try {
-      const result = await appState.licenseManager.activateLicense(licenseKey, email)
+      const sanitizedKey = InputValidator.validateString(licenseKey, 200)
+      const sanitizedEmail = InputValidator.validateString(email, 320)
+      if (!sanitizedKey || !sanitizedEmail) {
+        return { success: false, error: 'Invalid license key or email' }
+      }
+      // Basic email format validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitizedEmail)) {
+        return { success: false, error: 'Invalid email format' }
+      }
+      const result = await appState.licenseManager.activateLicense(sanitizedKey, sanitizedEmail)
       if (result.success) {
         await appState.analyticsManager.trackConversion('trial_to_paid', appState.licenseManager.getLicenseInfo()?.tier || 'pro')
       }
@@ -424,7 +523,9 @@ export function initializeIpcHandlers(appState: AppState): void {
 
   ipcMain.handle('license:has-feature', async (_, feature: string) => {
     try {
-      return appState.licenseManager.hasFeature(feature as any)
+      const sanitizedFeature = InputValidator.validateString(feature, 100)
+      if (!sanitizedFeature) return false
+      return appState.licenseManager.hasFeature(sanitizedFeature as any)
     } catch (error) {
       return errorHandler(error, 'license:has-feature')
     }
@@ -460,8 +561,12 @@ export function initializeIpcHandlers(appState: AppState): void {
 
   ipcMain.handle('usage:track-audio', async (_, minutes: number) => {
     try {
-      const result = await appState.usageTracker.trackAudioMinutes(minutes)
-      await appState.analyticsManager.trackFeatureUsage('audio', minutes * 60 * 1000)
+      const validMinutes = InputValidator.validateNumber(minutes, 0, 480) // Max 8 hours
+      if (validMinutes === null) {
+        return { success: false, error: 'Invalid minutes value' }
+      }
+      const result = await appState.usageTracker.trackAudioMinutes(validMinutes)
+      await appState.analyticsManager.trackFeatureUsage('audio', validMinutes * 60 * 1000)
       return result
     } catch (error) {
       return errorHandler(error, 'usage:track-audio')
@@ -481,7 +586,12 @@ export function initializeIpcHandlers(appState: AppState): void {
   // --- Analytics ---
   ipcMain.handle('analytics:track', async (_, event: string, properties?: Record<string, any>) => {
     try {
-      await appState.analyticsManager.track(event, properties)
+      const sanitizedEvent = InputValidator.validateString(event, 200)
+      if (!sanitizedEvent) {
+        return { success: false, error: 'Invalid event name' }
+      }
+      const sanitizedProps = properties ? InputValidator.sanitizeObject(properties) : undefined
+      await appState.analyticsManager.track(sanitizedEvent, sanitizedProps)
       return { success: true }
     } catch (error) {
       return errorHandler(error, 'analytics:track')

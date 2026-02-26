@@ -2,32 +2,49 @@
  * InputValidator - Validates and sanitizes IPC handler inputs
  */
 
+import path from 'path'
+
 export class InputValidator {
   /**
    * Validate API key format
    */
-  static validateApiKey(provider: 'openai' | 'anthropic', key: string): boolean {
+  static validateApiKey(provider: 'openai' | 'anthropic' | 'gemini' | 'mistral', key: string): boolean {
     if (!key || typeof key !== 'string' || key.trim().length === 0) {
       return false
     }
 
     const trimmed = key.trim()
 
+    // All keys must be at least 20 characters
+    if (trimmed.length < 20) return false
+    // Reject keys longer than 500 characters (prevents DoS via absurd strings)
+    if (trimmed.length > 500) return false
+
     switch (provider) {
       case 'openai':
-        return trimmed.startsWith('sk-') && trimmed.length > 20
+        return trimmed.startsWith('sk-')
       case 'anthropic':
-        return trimmed.startsWith('sk-ant-') && trimmed.length > 20
+        return trimmed.startsWith('sk-ant-')
+      case 'gemini':
+        return trimmed.startsWith('AIza')
+      case 'mistral':
+        // Mistral keys don't have a standard prefix, just validate length
+        return true
       default:
         return false
     }
   }
 
   /**
-   * Validate file path (prevent directory traversal)
+   * Validate file path (prevent directory traversal, null byte injection, symlink attacks)
    */
   static validateFilePath(filePath: string, allowedBaseDir?: string): boolean {
     if (!filePath || typeof filePath !== 'string') {
+      return false
+    }
+
+    // Block null bytes (path truncation attack)
+    if (filePath.includes('\0')) {
       return false
     }
 
@@ -36,10 +53,15 @@ export class InputValidator {
       return false
     }
 
+    // Must be an absolute path
+    if (!path.isAbsolute(filePath)) {
+      return false
+    }
+
     if (allowedBaseDir) {
-      const resolved = require('path').resolve(filePath)
-      const base = require('path').resolve(allowedBaseDir)
-      return resolved.startsWith(base)
+      const resolved = path.resolve(filePath)
+      const base = path.resolve(allowedBaseDir)
+      return resolved.startsWith(base + path.sep) || resolved === base
     }
 
     return true
@@ -66,7 +88,10 @@ export class InputValidator {
     if (input.length > maxLength) {
       return null
     }
-    // Basic sanitization
+    // Block null bytes
+    if (input.includes('\0')) {
+      return null
+    }
     return input.trim()
   }
 
@@ -75,7 +100,7 @@ export class InputValidator {
    */
   static validateNumber(input: any, min?: number, max?: number): number | null {
     const num = Number(input)
-    if (isNaN(num)) {
+    if (isNaN(num) || !isFinite(num)) {
       return null
     }
     if (min !== undefined && num < min) {
@@ -98,6 +123,22 @@ export class InputValidator {
       return input.toLowerCase() === 'true'
     }
     return false
+  }
+
+  /**
+   * Validate URL (prevent SSRF - only allow known API domains)
+   */
+  static validateUrl(url: string, allowedDomains: string[]): boolean {
+    if (!url || typeof url !== 'string') {
+      return false
+    }
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'https:') return false
+      return allowedDomains.some(domain => parsed.hostname === domain || parsed.hostname.endsWith('.' + domain))
+    } catch {
+      return false
+    }
   }
 
   /**
@@ -132,4 +173,3 @@ export class InputValidator {
     return sanitized
   }
 }
-
