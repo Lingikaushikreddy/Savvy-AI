@@ -24,7 +24,7 @@ export interface Settings {
         audioSourceId: string
     }
     ai: {
-        provider: 'openai' | 'anthropic'
+        provider: 'openai' | 'anthropic' | 'gemini' | 'mistral'
         model: string
         temperature: number
         maxTokens: number
@@ -37,6 +37,8 @@ export interface Settings {
     apiKeys: {
         openai: string
         anthropic: string
+        gemini: string
+        mistral: string
     }
     privacy: {
         retentionDays: number | 'never'
@@ -70,7 +72,9 @@ const defaultSettings: Settings = {
     },
     apiKeys: {
         openai: '',
-        anthropic: ''
+        anthropic: '',
+        gemini: '',
+        mistral: ''
     },
     privacy: {
         retentionDays: 30

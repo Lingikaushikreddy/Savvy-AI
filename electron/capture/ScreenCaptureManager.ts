@@ -1,5 +1,6 @@
 import { desktopCapturer, shell, systemPreferences, BrowserWindow } from 'electron'
 import activeWindow from 'active-win'
+import crypto from 'crypto'
 
 export interface WindowInfo {
   title: string
@@ -22,7 +23,7 @@ export class ScreenCaptureManager {
   private intervalId: NodeJS.Timeout | null = null
   public isCapturing: boolean = false
   private monitorInterval: number = 2000
-  private lastCapture: string | null = null
+  private lastCaptureHash: string | null = null
 
   constructor() { }
 
@@ -140,11 +141,12 @@ export class ScreenCaptureManager {
 
     if (!base64Image) return null
 
-    // Optimization: Simple Diff (String comparison)
-    if (base64Image === this.lastCapture) {
-      return null // No change
+    // Optimization: Hash-based dedup instead of full string comparison (saves memory)
+    const captureHash = crypto.createHash('md5').update(base64Image).digest('hex')
+    if (captureHash === this.lastCaptureHash) {
+      return null // No change detected
     }
-    this.lastCapture = base64Image
+    this.lastCaptureHash = captureHash
 
     return {
       screenshot: base64Image,

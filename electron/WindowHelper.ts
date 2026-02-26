@@ -81,8 +81,9 @@ export class WindowHelper {
       x: this.currentX,
       y: 0,
       webPreferences: {
-        nodeIntegration: true,
+        nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
         preload: path.join(__dirname, 'preload.js')
       },
       show: true,
@@ -96,8 +97,31 @@ export class WindowHelper {
     }
 
     this.mainWindow = new BrowserWindow(windowSettings)
-    // this.mainWindow.webContents.openDevTools()
     this.mainWindow.setContentProtection(true)
+
+    // Security: Set Content-Security-Policy
+    this.mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mistral.ai; font-src 'self';"
+          ]
+        }
+      })
+    })
+
+    // Security: Block navigation to external URLs
+    this.mainWindow.webContents.on('will-navigate', (event, url) => {
+      if (!url.startsWith('file://') && !url.startsWith('http://localhost')) {
+        event.preventDefault()
+      }
+    })
+
+    // Security: Block new window creation
+    this.mainWindow.webContents.setWindowOpenHandler(() => {
+      return { action: 'deny' }
+    })
 
     if (process.platform === 'darwin') {
       this.mainWindow.setVisibleOnAllWorkspaces(true, {

@@ -3,6 +3,14 @@ import { CRMClient, CRMContact, CRMDeal, CRMActivity, CRMAuthDetails } from './C
 import axios from 'axios'
 import { shell } from 'electron'
 
+// Allowed Salesforce instance URL domains (prevent SSRF)
+const ALLOWED_SF_DOMAINS = [
+    '.salesforce.com',
+    '.force.com',
+    '.salesforce.mil',
+    '.my.salesforce.com',
+]
+
 export class SalesforceClient implements CRMClient {
     name: 'salesforce' = 'salesforce'
     isAuthenticated: boolean = false
@@ -15,8 +23,34 @@ export class SalesforceClient implements CRMClient {
         this.clientId = clientId
     }
 
+    /**
+     * Validate that an instance URL belongs to Salesforce (prevent SSRF)
+     */
+    private validateInstanceUrl(url: string): boolean {
+        try {
+            const parsed = new URL(url)
+            if (parsed.protocol !== 'https:') return false
+            return ALLOWED_SF_DOMAINS.some(domain => parsed.hostname.endsWith(domain))
+        } catch {
+            return false
+        }
+    }
+
+    /**
+     * Escape a string for safe use in SOQL queries (prevent SOQL injection)
+     */
+    private escapeSoql(input: string): string {
+        return input
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\0/g, '')
+    }
+
     getAuthUrl(): string {
-        return `https://login.salesforce.com/services/oauth2/authorize?response_type=token&client_id=${this.clientId}&redirect_uri=${encodeURIComponent(this.redirectUri)}`
+        return `https://login.salesforce.com/services/oauth2/authorize?response_type=token&client_id=${encodeURIComponent(this.clientId)}&redirect_uri=${encodeURIComponent(this.redirectUri)}`
     }
 
     async authenticate(fragment: string): Promise<CRMAuthDetails> {
@@ -26,6 +60,11 @@ export class SalesforceClient implements CRMClient {
         const instanceUrl = params.get('instance_url')
 
         if (!accessToken || !instanceUrl) throw new Error('Invalid OAuth response')
+
+        // Validate instanceUrl to prevent SSRF
+        if (!this.validateInstanceUrl(instanceUrl)) {
+            throw new Error('Invalid Salesforce instance URL')
+        }
 
         this.auth = { accessToken, instanceUrl }
         this.isAuthenticated = true
@@ -42,7 +81,9 @@ export class SalesforceClient implements CRMClient {
     async findContact(email: string): Promise<CRMContact | null> {
         if (!this.auth) throw new Error('Not authenticated')
 
-        const q = `SELECT Id, FirstName, LastName, Email FROM Contact WHERE Email = '${email}' LIMIT 1`
+        // Use parameterized SOQL to prevent injection
+        const escapedEmail = this.escapeSoql(email)
+        const q = `SELECT Id, FirstName, LastName, Email FROM Contact WHERE Email = '${escapedEmail}' LIMIT 1`
         const res = await axios.get(`${this.auth.instanceUrl}/services/data/v58.0/query`, {
             params: { q },
             headers: { Authorization: `Bearer ${this.auth.accessToken}` }
