@@ -129,21 +129,22 @@ The context builder sends **all messages** to the LLM without truncation or slid
 | OpenAI GPT-4o-mini (fallback) | ~200 queries/mo | $0.60 |
 | **Total per user** | | **~$20-35/mo** |
 
-### Optimized Cost Structure (After Changes)
+### Optimized Cost Structure (After Changes — with Mistral)
 
 | Service | Optimization | Est. Cost |
 |---------|-------------|-----------|
-| Gemini Flash 2.0 (default for basic) | 10x cheaper | $1.50-3 |
-| GPT-4o (vision/complex only) | Route only when needed | $5-10 |
+| Mistral Small 3.2 (default for basic) | **50x cheaper** than GPT-4o | $0.30-0.60 |
+| Gemini Flash 2.0 (OCR/vision) | 10x cheaper than GPT-4o | $1.50-3 |
+| GPT-4o (complex vision only) | Route only when needed | $3-5 |
 | Whisper API | Duration limits + caching | $1.80 |
 | Claude Haiku 4.5 (fast tasks) | Cheaper than GPT-4o-mini | $0.30 |
-| **Total per user** | | **~$8-15/mo** |
+| **Total per user** | | **~$6-11/mo** |
 
-**Savings: 50-60% per user** by intelligent model routing.
+**Savings: 65-70% per user** by intelligent model routing with Mistral as cheapest tier.
 
 ### Key Cost Levers
 
-1. **Smart Model Routing**: Use Gemini Flash for OCR/simple queries, GPT-4o only for vision, Claude for complex reasoning
+1. **Smart Model Routing**: Use Mistral Small for basic Q&A, Gemini Flash for OCR, GPT-4o only for complex vision, Claude for reasoning
 2. **Response Caching**: Current cache is 50 entries with no TTL — increase to 200 with 5-minute TTL
 3. **Screenshot Dedup**: Hash-based comparison saves redundant OCR/vision API calls
 4. **Audio Chunking**: Process audio in 30-second chunks instead of full buffers

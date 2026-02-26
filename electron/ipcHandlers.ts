@@ -167,10 +167,11 @@ export function initializeIpcHandlers(appState: AppState): void {
       if (sanitizedKey.includes('api_key') && sanitizedValue) {
         const provider = sanitizedKey.includes('openai') ? 'openai' :
                         sanitizedKey.includes('anthropic') ? 'anthropic' :
-                        sanitizedKey.includes('gemini') ? 'gemini' : null
+                        sanitizedKey.includes('gemini') ? 'gemini' :
+                        sanitizedKey.includes('mistral') ? 'mistral' : null
         if (provider) {
           appState.processingHelper.llmHelper.llmRouter.updateApiKey(
-            provider as 'openai' | 'anthropic' | 'gemini',
+            provider as 'openai' | 'anthropic' | 'gemini' | 'mistral',
             sanitizedValue
           )
         }
@@ -195,7 +196,7 @@ export function initializeIpcHandlers(appState: AppState): void {
         return { valid: false, error: 'Invalid input' }
       }
 
-      if (sanitizedProvider !== 'openai' && sanitizedProvider !== 'anthropic' && sanitizedProvider !== 'gemini') {
+      if (sanitizedProvider !== 'openai' && sanitizedProvider !== 'anthropic' && sanitizedProvider !== 'gemini' && sanitizedProvider !== 'mistral') {
         return { valid: false, error: 'Invalid provider' }
       }
 

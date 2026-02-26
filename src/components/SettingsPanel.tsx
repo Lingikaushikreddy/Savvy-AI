@@ -195,7 +195,7 @@ export const SettingsPanel: React.FC = () => {
                                 <>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-300 mb-2">Provider</label>
-                                        <div className="grid grid-cols-3 gap-3">
+                                        <div className="grid grid-cols-2 gap-3">
                                             <button
                                                 onClick={() => handleChange('ai', 'provider', 'openai')}
                                                 className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${localSettings.ai.provider === 'openai'
@@ -223,8 +223,17 @@ export const SettingsPanel: React.FC = () => {
                                             >
                                                 Gemini
                                             </button>
+                                            <button
+                                                onClick={() => handleChange('ai', 'provider', 'mistral')}
+                                                className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${localSettings.ai.provider === 'mistral'
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                                                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                                                    }`}
+                                            >
+                                                Mistral
+                                            </button>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-2">Gemini Flash is the most cost-effective for basic tasks.</p>
+                                        <p className="text-xs text-gray-500 mt-2">Mistral Small is the cheapest option. Gemini Flash is great for basic tasks.</p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-300 mb-2">Model</label>
@@ -243,10 +252,16 @@ export const SettingsPanel: React.FC = () => {
                                                     <option value="claude-sonnet-4-5-20250514">Claude 4.5 Sonnet (Recommended)</option>
                                                     <option value="claude-haiku-4-5-20251001">Claude 4.5 Haiku (Budget)</option>
                                                 </>
-                                            ) : (
+                                            ) : localSettings.ai.provider === 'gemini' ? (
                                                 <>
                                                     <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
                                                     <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Budget)</option>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <option value="mistral-small-latest">Mistral Small (Cheapest)</option>
+                                                    <option value="mistral-medium-latest">Mistral Medium (Balanced)</option>
+                                                    <option value="mistral-large-latest">Mistral Large (Best)</option>
                                                 </>
                                             )}
                                         </select>
@@ -300,8 +315,18 @@ export const SettingsPanel: React.FC = () => {
                                             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">Mistral API Key</label>
+                                        <input
+                                            type="password"
+                                            value={localSettings.apiKeys.mistral}
+                                            onChange={(e) => handleChange('apiKeys', 'mistral', e.target.value)}
+                                            placeholder="..."
+                                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-blue-500 focus:outline-none"
+                                        />
+                                    </div>
                                     <div className="p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg text-sm text-blue-300">
-                                        Keys are encrypted and stored locally on your device. Gemini Flash is the most cost-effective option for most tasks.
+                                        Keys are encrypted and stored locally on your device. Mistral Small is the cheapest at $0.06/1M tokens.
                                     </div>
                                 </>
                             )}

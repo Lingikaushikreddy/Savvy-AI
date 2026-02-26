@@ -2,10 +2,11 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
+import { Mistral } from '@mistralai/mistralai';
 import { EventEmitter } from 'events';
 import crypto from 'crypto';
 
-export type Provider = 'openai' | 'anthropic' | 'gemini';
+export type Provider = 'openai' | 'anthropic' | 'gemini' | 'mistral';
 
 export interface TextPart {
     type: 'text';
@@ -60,6 +61,7 @@ export class LLMRouter extends EventEmitter {
     private openai: OpenAI | null = null;
     private anthropic: Anthropic | null = null;
     private gemini: GoogleGenAI | null = null;
+    private mistral: Mistral | null = null;
     private currentProvider: Provider = 'openai';
     private currentModel: string = 'gpt-4o';
 
@@ -82,6 +84,11 @@ export class LLMRouter extends EventEmitter {
         gemini: {
             model: 'gemini-2.0-flash',
             fallback: 'gemini-2.0-flash-lite',
+            temperature: 0.3,
+        },
+        mistral: {
+            model: 'mistral-small-latest',
+            fallback: 'mistral-small-latest',
             temperature: 0.3,
         },
     };
@@ -108,8 +115,17 @@ export class LLMRouter extends EventEmitter {
             });
         }
 
+        if (process.env.MISTRAL_API_KEY) {
+            this.mistral = new Mistral({
+                apiKey: process.env.MISTRAL_API_KEY,
+            });
+        }
+
         // Set default provider based on what's available (prefer cheapest first)
-        if (this.gemini && !this.openai && !this.anthropic) {
+        if (this.mistral && !this.openai && !this.anthropic && !this.gemini) {
+            this.currentProvider = 'mistral';
+            this.currentModel = this.DEFAULTS.mistral.model;
+        } else if (this.gemini && !this.openai && !this.anthropic) {
             this.currentProvider = 'gemini';
             this.currentModel = this.DEFAULTS.gemini.model;
         } else if (this.anthropic && !this.openai) {
@@ -128,6 +144,8 @@ export class LLMRouter extends EventEmitter {
             this.anthropic = new Anthropic({ apiKey });
         } else if (provider === 'gemini') {
             this.gemini = new GoogleGenAI({ apiKey });
+        } else if (provider === 'mistral') {
+            this.mistral = new Mistral({ apiKey });
         }
     }
 
@@ -184,7 +202,12 @@ export class LLMRouter extends EventEmitter {
         try {
             let response: LLMResponse;
 
-            if (this.currentProvider === 'gemini') {
+            if (this.currentProvider === 'mistral') {
+                if (!this.mistral) {
+                    throw new Error('Mistral client not initialized. Please set MISTRAL_API_KEY.');
+                }
+                response = await this.completeMistral(context, options);
+            } else if (this.currentProvider === 'gemini') {
                 if (!this.gemini) {
                     throw new Error('Gemini client not initialized. Please set GEMINI_API_KEY.');
                 }
@@ -217,7 +240,12 @@ export class LLMRouter extends EventEmitter {
         options?: CompletionOptions
     ): AsyncGenerator<string> {
         try {
-            if (this.currentProvider === 'gemini') {
+            if (this.currentProvider === 'mistral') {
+                if (!this.mistral) {
+                    throw new Error('Mistral client not initialized. Please set MISTRAL_API_KEY.');
+                }
+                yield* this.streamMistral(context, options);
+            } else if (this.currentProvider === 'gemini') {
                 if (!this.gemini) {
                     throw new Error('Gemini client not initialized. Please set GEMINI_API_KEY.');
                 }
@@ -490,6 +518,84 @@ export class LLMRouter extends EventEmitter {
                     parts
                 };
             });
+    }
+
+    // --- Mistral Implementations ---
+
+    private convertToMistralMessages(context: Context): Array<{ role: 'system' | 'user' | 'assistant'; content: any }> {
+        const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: any }> = [];
+        if (context.systemPrompt) {
+            messages.push({ role: 'system', content: context.systemPrompt });
+        }
+        for (const m of context.messages) {
+            if (typeof m.content === 'string') {
+                messages.push({ role: m.role, content: m.content });
+            } else if (Array.isArray(m.content)) {
+                // Mistral supports vision via content array with text/image_url parts (same format as OpenAI)
+                const parts = m.content.map(part => {
+                    if (part.type === 'image_url') {
+                        return { type: 'image_url' as const, imageUrl: part.image_url.url };
+                    }
+                    return { type: 'text' as const, text: part.text };
+                });
+                messages.push({ role: m.role, content: parts as any });
+            }
+        }
+        return messages;
+    }
+
+    private async completeMistral(
+        context: Context,
+        options?: CompletionOptions
+    ): Promise<LLMResponse> {
+        const model = options?.model || this.currentModel || this.DEFAULTS.mistral.model;
+        const temperature = options?.temperature ?? this.DEFAULTS.mistral.temperature;
+        const messages = this.convertToMistralMessages(context);
+
+        const response = await this.mistral!.chat.complete({
+            model,
+            messages: messages as any,
+            temperature,
+            maxTokens: options?.maxTokens,
+            stop: options?.stopSequences,
+        });
+
+        const choice = response.choices?.[0];
+
+        return {
+            text: (choice?.message?.content as string) || '',
+            model: response.model || model,
+            tokens: {
+                prompt: response.usage?.promptTokens || 0,
+                completion: response.usage?.completionTokens || 0,
+                total: response.usage?.totalTokens || 0,
+            },
+            finishReason: choice?.finishReason || 'stop',
+        };
+    }
+
+    private async *streamMistral(
+        context: Context,
+        options?: CompletionOptions
+    ): AsyncGenerator<string> {
+        const model = options?.model || this.currentModel || this.DEFAULTS.mistral.model;
+        const temperature = options?.temperature ?? this.DEFAULTS.mistral.temperature;
+        const messages = this.convertToMistralMessages(context);
+
+        const stream = await this.mistral!.chat.stream({
+            model,
+            messages: messages as any,
+            temperature,
+            maxTokens: options?.maxTokens,
+            stop: options?.stopSequences,
+        });
+
+        for await (const event of stream) {
+            const content = event.data?.choices?.[0]?.delta?.content;
+            if (content && typeof content === 'string') {
+                yield content;
+            }
+        }
     }
 
     public estimateTokens(text: string): number {
