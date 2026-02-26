@@ -163,13 +163,16 @@ export function initializeIpcHandlers(appState: AppState): void {
       await appState.databaseManager.setSetting(sanitizedKey, sanitizedValue || '')
       
       // Apply critical settings immediately (like API keys)
-      if (sanitizedKey.includes('api_key')) {
-        // Update router config if needed
-        const provider = sanitizedKey.includes('openai') ? 'openai' : 
-                        sanitizedKey.includes('anthropic') ? 'anthropic' : null
-        if (provider && sanitizedValue) {
-          // Router will pick up from env or database on next request
-          process.env[`${provider.toUpperCase()}_API_KEY`] = sanitizedValue
+      // Update the LLM router directly instead of mutating process.env (security best practice)
+      if (sanitizedKey.includes('api_key') && sanitizedValue) {
+        const provider = sanitizedKey.includes('openai') ? 'openai' :
+                        sanitizedKey.includes('anthropic') ? 'anthropic' :
+                        sanitizedKey.includes('gemini') ? 'gemini' : null
+        if (provider) {
+          appState.processingHelper.llmHelper.llmRouter.updateApiKey(
+            provider as 'openai' | 'anthropic' | 'gemini',
+            sanitizedValue
+          )
         }
       }
       
@@ -192,7 +195,7 @@ export function initializeIpcHandlers(appState: AppState): void {
         return { valid: false, error: 'Invalid input' }
       }
 
-      if (sanitizedProvider !== 'openai' && sanitizedProvider !== 'anthropic') {
+      if (sanitizedProvider !== 'openai' && sanitizedProvider !== 'anthropic' && sanitizedProvider !== 'gemini') {
         return { valid: false, error: 'Invalid provider' }
       }
 

@@ -416,7 +416,7 @@ export class DatabaseManager {
     }
 
     private isSensitiveKey(key: string): boolean {
-        return ['openai_api_key', 'anthropic_api_key', 'api_keys'].some(k => key.includes(k))
+        return ['openai_api_key', 'anthropic_api_key', 'gemini_api_key', 'api_key', 'license.key'].some(k => key.includes(k))
     }
 
     // --- Maintenance ---

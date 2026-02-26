@@ -1,9 +1,11 @@
 
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { EventEmitter } from 'events';
+import crypto from 'crypto';
 
-export type Provider = 'openai' | 'anthropic';
+export type Provider = 'openai' | 'anthropic' | 'gemini';
 
 export interface TextPart {
     type: 'text';
@@ -49,16 +51,23 @@ export interface LLMResponse {
     finishReason?: string;
 }
 
+interface CacheEntry {
+    response: LLMResponse;
+    timestamp: number;
+}
+
 export class LLMRouter extends EventEmitter {
     private openai: OpenAI | null = null;
     private anthropic: Anthropic | null = null;
+    private gemini: GoogleGenAI | null = null;
     private currentProvider: Provider = 'openai';
-    private currentModel: string = 'gpt-4o'; // Default to vision capable model
+    private currentModel: string = 'gpt-4o';
 
-    private cache: Map<string, LLMResponse> = new Map();
-    private readonly MAX_CACHE = 50;
+    private cache: Map<string, CacheEntry> = new Map();
+    private readonly MAX_CACHE = 200;
+    private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-    // Default models for each provider
+    // Updated models to latest versions for better performance and cost
     private readonly DEFAULTS = {
         openai: {
             model: 'gpt-4o',
@@ -66,8 +75,13 @@ export class LLMRouter extends EventEmitter {
             temperature: 0.3,
         },
         anthropic: {
-            model: 'claude-3-sonnet-20240229',
-            fallback: 'claude-3-haiku-20240307',
+            model: 'claude-sonnet-4-5-20250514',
+            fallback: 'claude-haiku-4-5-20251001',
+            temperature: 0.3,
+        },
+        gemini: {
+            model: 'gemini-2.0-flash',
+            fallback: 'gemini-2.0-flash-lite',
             temperature: 0.3,
         },
     };
@@ -75,7 +89,6 @@ export class LLMRouter extends EventEmitter {
     constructor() {
         super();
 
-        // Only initialize OpenAI if API key is provided
         if (process.env.OPENAI_API_KEY) {
             this.openai = new OpenAI({
                 apiKey: process.env.OPENAI_API_KEY,
@@ -83,17 +96,38 @@ export class LLMRouter extends EventEmitter {
             });
         }
 
-        // Only initialize Anthropic if API key is provided
         if (process.env.ANTHROPIC_API_KEY) {
             this.anthropic = new Anthropic({
                 apiKey: process.env.ANTHROPIC_API_KEY,
             });
         }
 
-        // Set default provider based on what's available
-        if (this.anthropic && !this.openai) {
+        if (process.env.GEMINI_API_KEY) {
+            this.gemini = new GoogleGenAI({
+                apiKey: process.env.GEMINI_API_KEY,
+            });
+        }
+
+        // Set default provider based on what's available (prefer cheapest first)
+        if (this.gemini && !this.openai && !this.anthropic) {
+            this.currentProvider = 'gemini';
+            this.currentModel = this.DEFAULTS.gemini.model;
+        } else if (this.anthropic && !this.openai) {
             this.currentProvider = 'anthropic';
             this.currentModel = this.DEFAULTS.anthropic.model;
+        }
+    }
+
+    /**
+     * Reinitialize a provider with a new API key (called when user updates keys via settings)
+     */
+    public updateApiKey(provider: Provider, apiKey: string): void {
+        if (provider === 'openai') {
+            this.openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: false });
+        } else if (provider === 'anthropic') {
+            this.anthropic = new Anthropic({ apiKey });
+        } else if (provider === 'gemini') {
+            this.gemini = new GoogleGenAI({ apiKey });
         }
     }
 
@@ -108,12 +142,32 @@ export class LLMRouter extends EventEmitter {
 
     private getCacheKey(context: Context, options?: CompletionOptions): string {
         try {
-            // Simple signature based on message content
-            // We ignore system prompt if not present, and options for simplicity unless crucial
-            return JSON.stringify({ m: context.messages, o: options })
+            const raw = JSON.stringify({ m: context.messages, o: options });
+            return crypto.createHash('sha256').update(raw).digest('hex');
         } catch {
-            return ''
+            return '';
         }
+    }
+
+    private getCachedResponse(key: string): LLMResponse | null {
+        if (!key) return null;
+        const entry = this.cache.get(key);
+        if (!entry) return null;
+        if (Date.now() - entry.timestamp > this.CACHE_TTL_MS) {
+            this.cache.delete(key);
+            return null;
+        }
+        return entry.response;
+    }
+
+    private setCachedResponse(key: string, response: LLMResponse): void {
+        if (!key) return;
+        if (this.cache.size >= this.MAX_CACHE) {
+            // Evict oldest entry
+            const oldestKey = this.cache.keys().next().value;
+            if (oldestKey) this.cache.delete(oldestKey);
+        }
+        this.cache.set(key, { response, timestamp: Date.now() });
     }
 
     /**
@@ -123,34 +177,32 @@ export class LLMRouter extends EventEmitter {
         context: Context,
         options?: CompletionOptions
     ): Promise<LLMResponse> {
-        const key = this.getCacheKey(context, options)
-        if (key && this.cache.has(key)) {
-            console.log('LLMRouter: Cache Hit')
-            return this.cache.get(key)!
-        }
+        const key = this.getCacheKey(context, options);
+        const cached = this.getCachedResponse(key);
+        if (cached) return cached;
 
         try {
-            let response: LLMResponse
-            if (this.currentProvider === 'openai') {
+            let response: LLMResponse;
+
+            if (this.currentProvider === 'gemini') {
+                if (!this.gemini) {
+                    throw new Error('Gemini client not initialized. Please set GEMINI_API_KEY.');
+                }
+                response = await this.completeGemini(context, options);
+            } else if (this.currentProvider === 'openai') {
                 if (!this.openai) {
-                    throw new Error('OpenAI client not initialized. Please set OPENAI_API_KEY environment variable.');
+                    throw new Error('OpenAI client not initialized. Please set OPENAI_API_KEY.');
                 }
                 response = await this.completeOpenAI(context, options);
             } else {
                 if (!this.anthropic) {
-                    throw new Error('Anthropic client not initialized. Please set ANTHROPIC_API_KEY environment variable.');
+                    throw new Error('Anthropic client not initialized. Please set ANTHROPIC_API_KEY.');
                 }
                 response = await this.completeAnthropic(context, options);
             }
 
-            if (key) {
-                if (this.cache.size >= this.MAX_CACHE) {
-                    const first = this.cache.keys().next().value
-                    this.cache.delete(first)
-                }
-                this.cache.set(key, response)
-            }
-            return response
+            this.setCachedResponse(key, response);
+            return response;
         } catch (error) {
             console.error('Error in LLMRouter.complete:', error);
             throw error;
@@ -165,14 +217,19 @@ export class LLMRouter extends EventEmitter {
         options?: CompletionOptions
     ): AsyncGenerator<string> {
         try {
-            if (this.currentProvider === 'openai') {
+            if (this.currentProvider === 'gemini') {
+                if (!this.gemini) {
+                    throw new Error('Gemini client not initialized. Please set GEMINI_API_KEY.');
+                }
+                yield* this.streamGemini(context, options);
+            } else if (this.currentProvider === 'openai') {
                 if (!this.openai) {
-                    throw new Error('OpenAI client not initialized. Please set OPENAI_API_KEY environment variable.');
+                    throw new Error('OpenAI client not initialized. Please set OPENAI_API_KEY.');
                 }
                 yield* this.streamOpenAI(context, options);
             } else {
                 if (!this.anthropic) {
-                    throw new Error('Anthropic client not initialized. Please set ANTHROPIC_API_KEY environment variable.');
+                    throw new Error('Anthropic client not initialized. Please set ANTHROPIC_API_KEY.');
                 }
                 yield* this.streamAnthropic(context, options);
             }
@@ -247,27 +304,15 @@ export class LLMRouter extends EventEmitter {
         }
     }
 
-    // --- Anthropic Implementations ---
+    // --- Shared Anthropic message conversion (extracted from duplicated code) ---
 
-    private async completeAnthropic(
-        context: Context,
-        options?: CompletionOptions
-    ): Promise<LLMResponse> {
-        const model = options?.model || this.currentModel || this.DEFAULTS.anthropic.model;
-        const temperature = options?.temperature ?? this.DEFAULTS.anthropic.temperature;
-
-        const system = context.systemPrompt;
-
-        // Convert generic content to Anthropic format if needed
-        // Anthropic Image block: { type: "image", source: { type: "base64", media_type: ..., data: ... } }
-        // We need to map our ImagePart to Anthropic's format.
-        const messages = context.messages.filter(m => m.role !== 'system').map(m => {
+    private convertToAnthropicMessages(context: Context): Array<{ role: 'user' | 'assistant'; content: any }> {
+        return context.messages.filter(m => m.role !== 'system').map(m => {
             let content: any = m.content;
             if (Array.isArray(m.content)) {
                 content = m.content.map(part => {
                     if (part.type === 'image_url') {
-                        // Extract base64 and mime from data url: "data:image/png;base64,..."
-                        const matches = part.image_url.url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
+                        const matches = part.image_url.url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9\-.+]+);base64,(.+)$/);
                         if (matches) {
                             return {
                                 type: 'image',
@@ -278,8 +323,6 @@ export class LLMRouter extends EventEmitter {
                                 }
                             };
                         }
-                        // Anthropic doesn't support http urls directly usually, mostly base64. 
-                        // Fallback or error if not base64? For now assume base64 is passed.
                         return { type: 'text', text: '[Image URL not supported in Anthropic directly]' };
                     }
                     return part;
@@ -290,17 +333,28 @@ export class LLMRouter extends EventEmitter {
                 content
             };
         });
+    }
+
+    // --- Anthropic Implementations ---
+
+    private async completeAnthropic(
+        context: Context,
+        options?: CompletionOptions
+    ): Promise<LLMResponse> {
+        const model = options?.model || this.currentModel || this.DEFAULTS.anthropic.model;
+        const temperature = options?.temperature ?? this.DEFAULTS.anthropic.temperature;
+        const system = context.systemPrompt;
+        const messages = this.convertToAnthropicMessages(context);
 
         const response = await this.anthropic!.messages.create({
             model,
             messages,
             system,
             temperature,
-            max_tokens: options?.maxTokens || 4096, // Anthropic requires max_tokens usually
+            max_tokens: options?.maxTokens || 4096,
             stop_sequences: options?.stopSequences,
         });
 
-        // Content is an array of blocks, we want the text one.
         const textBlock = response.content.find(c => c.type === 'text');
         const text = textBlock?.type === 'text' ? textBlock.text : '';
 
@@ -322,35 +376,8 @@ export class LLMRouter extends EventEmitter {
     ): AsyncGenerator<string> {
         const model = options?.model || this.currentModel || this.DEFAULTS.anthropic.model;
         const temperature = options?.temperature ?? this.DEFAULTS.anthropic.temperature;
-
         const system = context.systemPrompt;
-
-        const messages = context.messages.filter(m => m.role !== 'system').map(m => {
-            let content: any = m.content;
-            if (Array.isArray(m.content)) {
-                content = m.content.map(part => {
-                    if (part.type === 'image_url') {
-                        const matches = part.image_url.url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
-                        if (matches) {
-                            return {
-                                type: 'image',
-                                source: {
-                                    type: 'base64',
-                                    media_type: matches[1],
-                                    data: matches[2]
-                                }
-                            };
-                        }
-                        return { type: 'text', text: '[Image URL not supported]' };
-                    }
-                    return part;
-                });
-            }
-            return {
-                role: m.role as 'user' | 'assistant',
-                content
-            };
-        });
+        const messages = this.convertToAnthropicMessages(context);
 
         const stream = await this.anthropic!.messages.create({
             model,
@@ -369,8 +396,107 @@ export class LLMRouter extends EventEmitter {
         }
     }
 
+    // --- Gemini Implementations ---
+
+    private async completeGemini(
+        context: Context,
+        options?: CompletionOptions
+    ): Promise<LLMResponse> {
+        const model = options?.model || this.currentModel || this.DEFAULTS.gemini.model;
+        const temperature = options?.temperature ?? this.DEFAULTS.gemini.temperature;
+
+        // Build contents for Gemini
+        const contents = this.convertToGeminiContents(context);
+
+        const response = await this.gemini!.models.generateContent({
+            model,
+            contents,
+            config: {
+                temperature,
+                maxOutputTokens: options?.maxTokens || 4096,
+                stopSequences: options?.stopSequences,
+                systemInstruction: context.systemPrompt,
+            },
+        });
+
+        const text = response.text || '';
+
+        return {
+            text,
+            model,
+            tokens: {
+                prompt: response.usageMetadata?.promptTokenCount || 0,
+                completion: response.usageMetadata?.candidatesTokenCount || 0,
+                total: response.usageMetadata?.totalTokenCount || 0,
+            },
+            finishReason: 'stop',
+        };
+    }
+
+    private async *streamGemini(
+        context: Context,
+        options?: CompletionOptions
+    ): AsyncGenerator<string> {
+        const model = options?.model || this.currentModel || this.DEFAULTS.gemini.model;
+        const temperature = options?.temperature ?? this.DEFAULTS.gemini.temperature;
+
+        const contents = this.convertToGeminiContents(context);
+
+        const response = await this.gemini!.models.generateContentStream({
+            model,
+            contents,
+            config: {
+                temperature,
+                maxOutputTokens: options?.maxTokens || 4096,
+                stopSequences: options?.stopSequences,
+                systemInstruction: context.systemPrompt,
+            },
+        });
+
+        for await (const chunk of response) {
+            const text = chunk.text || '';
+            if (text) {
+                yield text;
+            }
+        }
+    }
+
+    private convertToGeminiContents(context: Context): Array<{ role: string; parts: any[] }> {
+        return context.messages
+            .filter(m => m.role !== 'system')
+            .map(m => {
+                const parts: any[] = [];
+                if (typeof m.content === 'string') {
+                    parts.push({ text: m.content });
+                } else if (Array.isArray(m.content)) {
+                    for (const part of m.content) {
+                        if (part.type === 'text') {
+                            parts.push({ text: part.text });
+                        } else if (part.type === 'image_url') {
+                            const matches = part.image_url.url.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9\-.+]+);base64,(.+)$/);
+                            if (matches) {
+                                parts.push({
+                                    inlineData: {
+                                        mimeType: matches[1],
+                                        data: matches[2]
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                return {
+                    role: m.role === 'assistant' ? 'model' : 'user',
+                    parts
+                };
+            });
+    }
+
     public estimateTokens(text: string): number {
         return Math.ceil(text.length / 4);
     }
 
+    public clearCache(): void {
+        this.cache.clear();
+    }
 }

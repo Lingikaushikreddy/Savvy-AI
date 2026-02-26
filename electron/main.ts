@@ -80,6 +80,12 @@ export class AppState {
   } as const
 
   constructor() {
+    // Initialize Logger FIRST - other services depend on it
+    this.logger = new Logger('savvy-ai')
+
+    // Initialize PerformanceMonitor
+    this.performanceMonitor = new PerformanceMonitor()
+
     // Initialize WindowHelper
     this.windowHelper = new WindowHelper(this)
 
@@ -116,6 +122,9 @@ export class AppState {
 
     // Initialize ContextBuilder
     this.contextBuilder = new ContextBuilder(this)
+
+    // Initialize NotesGenerator
+    this.notesGenerator = new NotesGenerator(this)
 
     // Initialize CoachingManager
     this.coachingManager = new CoachingManager(this)
